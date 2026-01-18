@@ -1,5 +1,7 @@
 # TagStore
 
+[English](README.md) | [中文](README_zh_CN.md)
+
 A cross-platform Digital Asset Management (DAM) tool for personal high-volume file organization. TagStore decouples physical storage from logical retrieval using AI-powered auto-tagging.
 
 ## Features
