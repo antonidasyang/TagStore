@@ -22,7 +22,7 @@ Rectangle {
     property int currentFocusIndex: -1  // Current keyboard focus index
     
     signal fileClicked(int fileId, string filePath)
-    signal fileContextMenu(int fileId, string filePath, real mouseX, real mouseY)
+    signal fileContextMenu(int fileId, string filePath, bool isReferenced, real mouseX, real mouseY)
     signal tagClicked(string tagName)
     signal selectionChanged(var selectedIds)
     signal batchAITagRequested(var fileIds)
@@ -32,7 +32,10 @@ Rectangle {
     
     // Keyboard navigation
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || 
+        if (event.key === Qt.Key_Escape) {
+            clearSelection()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || 
             event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
             navigateWithKeys(event.key, event.modifiers & Qt.ShiftModifier)
             event.accepted = true
@@ -265,6 +268,7 @@ Rectangle {
             filePath: model.filePath
             isReferenced: model.isReferenced
             isAITagged: model.isAITagged
+            isDir: model.isDir
             tags: model.tags
             
             isSelected: root.selectedFileIds.indexOf(model.fileId) !== -1
@@ -322,7 +326,7 @@ Rectangle {
                 if (root.selectedFileIds.indexOf(model.fileId) === -1) {
                     selectSingleItem(model.fileId)
                 }
-                root.fileContextMenu(model.fileId, model.filePath, mouseX, mouseY)
+                root.fileContextMenu(model.fileId, model.filePath, model.isReferenced, mouseX, mouseY)
             }
             
             onTagClicked: function(tagName) {
@@ -350,7 +354,7 @@ Rectangle {
     ListView {
         id: listView
         anchors.fill: parent
-        anchors.topMargin: 48
+        anchors.topMargin: 44
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         anchors.bottomMargin: 16
@@ -360,13 +364,13 @@ Rectangle {
         interactive: false  // Disable drag scrolling, use wheel instead
         
         clip: true
-        spacing: 4
+        spacing: 8
         
         delegate: Rectangle {
             id: listItem
             width: listView.width
-            height: tagsExpanded ? (56 + expandedTagsFlow.height) : 56
-            radius: 8
+            height: tagsExpanded ? (64 + expandedTagsFlow.implicitHeight + 8) : 64
+            radius: 12
             
             property bool isItemSelected: root.selectedFileIds.indexOf(model.fileId) !== -1
             property bool isItemFocused: root.currentFocusFileId === model.fileId
@@ -390,29 +394,35 @@ Rectangle {
             Behavior on height { NumberAnimation { duration: 200 } }
             
             RowLayout {
-                anchors.fill: parent
-                anchors.margins: 10
+                id: mainInfoRow
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 64
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
                 spacing: 12
                 
                 // File icon
                 Rectangle {
-                    Layout.preferredWidth: 36
-                    Layout.preferredHeight: 36
+                    Layout.preferredWidth: 38
+                    Layout.preferredHeight: 38
+                    Layout.alignment: Qt.AlignVCenter
                     radius: 8
                     color: themeManager.background
                     
                     Text {
                         anchors.centerIn: parent
-                        text: getFileIcon(model.filename)
-                        font.pixelSize: 20
+                        text: model.isDir ? "📁" : getFileIcon(model.filename)
+                        font.pixelSize: 22
                     }
                 }
                 
                 // File info
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: 4
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: 2
                     
                     RowLayout {
                         Layout.fillWidth: true
@@ -521,13 +531,12 @@ Rectangle {
             // Expanded tags
             Flow {
                 id: expandedTagsFlow
-                anchors.top: parent.top
-                anchors.topMargin: 48
+                anchors.top: mainInfoRow.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.leftMargin: 80
-                anchors.rightMargin: 10
-                spacing: 4
+                anchors.leftMargin: 62 // 12 + 38 + 12
+                anchors.rightMargin: 12
+                spacing: 6
                 visible: listItem.tagsExpanded
                 
                 Repeater {
@@ -535,7 +544,7 @@ Rectangle {
                     
                     Rectangle {
                         width: tagTextExpanded.width + 12
-                        height: 22
+                        height: 24
                         radius: 4
                         color: tagExpandedMouse.containsMouse ? themeManager.primary : themeManager.primaryLight
                         
@@ -559,7 +568,7 @@ Rectangle {
                 
                 Rectangle {
                     width: collapseText.width + 12
-                    height: 22
+                    height: 24
                     radius: 4
                     color: collapseBtnMouse.containsMouse ? themeManager.primary : themeManager.surfaceHover
                     
@@ -690,17 +699,33 @@ Rectangle {
         anchors.fill: parent
         anchors.topMargin: 48
         acceptedButtons: Qt.LeftButton
-        z: 0  // Behind items
-        propagateComposedEvents: true  // Let clicks pass through to items
+        z: 100  // Ensure it's on top to catch drags
         
         property point startPoint
         property bool isDragging: false
         
         onPressed: function(mouse) {
-            startPoint = Qt.point(mouse.x, mouse.y)
-            isDragging = false
-            // Don't accept immediately - let items handle clicks first
-            mouse.accepted = false
+            // Check if we clicked on an item or empty space
+            var contentX = mouse.x
+            var contentY = mouse.y
+            var item = null
+
+            if (isGridView) {
+                item = gridView.contentItem.childAt(contentX, contentY + gridView.contentY)
+            } else {
+                item = listView.contentItem.childAt(contentX, contentY + listView.contentY)
+            }
+
+            if (item) {
+                // Clicked on a file card -> pass event through to the item
+                mouse.accepted = false
+            } else {
+                // Clicked on empty space -> accept event to start potential drag
+                mouse.accepted = true
+                startPoint = Qt.point(mouse.x, mouse.y)
+                isDragging = false
+                root.forceActiveFocus()
+            }
         }
         
         onPositionChanged: function(mouse) {
@@ -733,12 +758,8 @@ Rectangle {
         
         onReleased: function(mouse) {
             if (!isDragging) {
-                // Was a click, not a drag
-                // If no modifier keys, clear selection when clicking empty area
-                // This will fire if no item handled the click (i.e., clicked on empty space)
                 if (!(mouse.modifiers & Qt.ControlModifier) && !(mouse.modifiers & Qt.ShiftModifier)) {
                     clearSelection()
-                    // Also clear focus
                     root.currentFocusFileId = -1
                     root.currentFocusIndex = -1
                 }

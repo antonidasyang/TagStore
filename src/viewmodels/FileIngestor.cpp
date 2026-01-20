@@ -5,8 +5,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QUuid>
 #include <QDebug>
+#include <QGuiApplication>
 
 FileIngestor::FileIngestor(QObject *parent)
     : QObject(parent)
@@ -33,10 +35,45 @@ bool FileIngestor::isProcessing() const
 
 void FileIngestor::processDroppedFiles(const QList<QUrl> &urls, int mode)
 {
+    // Check for directories
+    bool hasDir = false;
+    for (const QUrl &url : urls) {
+        if (QFileInfo(url.toLocalFile()).isDir()) {
+            hasDir = true;
+            break;
+        }
+    }
+    
+    if (hasDir) {
+        emit askFolderHandling(urls, mode);
+        return;
+    }
+    
+    processFilesWithFolderOption(urls, mode, false);
+}
+
+void FileIngestor::processFilesWithFolderOption(const QList<QUrl> &urls, int mode, bool recursive)
+{
     for (const QUrl &url : urls) {
         QString localPath = url.toLocalFile();
-        if (!localPath.isEmpty() && QFile::exists(localPath)) {
-            m_pendingFiles.append({localPath, mode});
+        QFileInfo info(localPath);
+        
+        if (!localPath.isEmpty() && info.exists()) {
+            if (info.isDir()) {
+                if (recursive) {
+                    // Recursive scan
+                    QDirIterator it(localPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+                    while (it.hasNext()) {
+                        m_pendingFiles.append({it.next(), mode});
+                    }
+                } else {
+                    // Import directory as item (Referenced mode only)
+                    m_pendingFiles.append({localPath, Referenced});
+                }
+            } else {
+                // Regular file
+                m_pendingFiles.append({localPath, mode});
+            }
         }
     }
     
@@ -184,10 +221,12 @@ void FileIngestor::onHashError(const QString &filePath, const QString &error)
 
 void FileIngestor::importFile(const QString &sourcePath, const QString &hash, int mode)
 {
-    QString filename = QFileInfo(sourcePath).fileName();
+    QFileInfo sourceInfo(sourcePath);
+    QString filename = sourceInfo.fileName();
     QString targetPath;
+    bool isDir = sourceInfo.isDir();
     
-    if (mode == Managed) {
+    if (mode == Managed && !isDir) {
         // Generate storage path and move file
         targetPath = LibraryConfig::instance().generateStoragePath(filename);
         
@@ -196,17 +235,19 @@ void FileIngestor::importFile(const QString &sourcePath, const QString &hash, in
             return;
         }
     } else {
-        // Referenced mode - keep file in place
+        // Referenced mode (or Directory) - keep file in place
         targetPath = sourcePath;
     }
     
     // Add to database
-    if (DatabaseManager::instance().addFile(hash, filename, targetPath, mode)) {
+    if (DatabaseManager::instance().addFile(hash, filename, targetPath, sourcePath, mode, isDir)) {
         // Get the new file ID
         FileDTO file = DatabaseManager::instance().getFileByPath(targetPath);
         if (file.id > 0) {
-            // Push to AI processing queue
-            DatabaseManager::instance().pushToQueue(file.id);
+            // Push to AI processing queue if auto-tag is enabled
+            if (LibraryConfig::instance().autoAiTag()) {
+                DatabaseManager::instance().pushToQueue(file.id);
+            }
             emit fileAdded(file.id, filename);
         }
     } else {
@@ -254,4 +295,9 @@ bool FileIngestor::moveFileToLibrary(const QString &sourcePath, const QString &t
 QString FileIngestor::generateJobId()
 {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+int FileIngestor::mouseButtons() const
+{
+    return QGuiApplication::mouseButtons();
 }

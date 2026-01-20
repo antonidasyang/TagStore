@@ -10,6 +10,7 @@ LibraryModel::LibraryModel(QObject *parent)
     connect(&db, &DatabaseManager::fileAdded, this, &LibraryModel::onFileAdded, Qt::QueuedConnection);
     connect(&db, &DatabaseManager::fileRemoved, this, &LibraryModel::onFileRemoved, Qt::QueuedConnection);
     connect(&db, &DatabaseManager::tagsUpdated, this, &LibraryModel::onTagsUpdated, Qt::QueuedConnection);
+    connect(&db, &DatabaseManager::globalTagsChanged, this, &LibraryModel::refresh, Qt::QueuedConnection);
     
     // Initial load
     loadAllFiles();
@@ -53,6 +54,8 @@ QVariant LibraryModel::data(const QModelIndex &index, int role) const
     case ThumbnailRole:
         // Return file path for now, thumbnail generation can be added later
         return file.filePath;
+    case IsDirRole:
+        return file.isDir;
     default:
         return QVariant();
     }
@@ -71,6 +74,7 @@ QHash<int, QByteArray> LibraryModel::roleNames() const
     roles[TagsRole] = "tags";
     roles[IsAITaggedRole] = "isAITagged";
     roles[ThumbnailRole] = "thumbnail";
+    roles[IsDirRole] = "isDir";
     return roles;
 }
 
@@ -105,6 +109,11 @@ void LibraryModel::setSelectedTagIds(const QList<int> &tagIds)
         emit selectedTagIdsChanged();
         performSearch();
     }
+}
+
+QVariantList LibraryModel::recommendedTags() const
+{
+    return m_recommendedTags;
 }
 
 void LibraryModel::refresh()
@@ -202,10 +211,14 @@ void LibraryModel::loadAllFiles()
         item.contentHash = dto.contentHash;
         item.storageMode = dto.storageMode;
         item.createdAt = dto.createdAt;
+        item.isDir = dto.isDir;
         item.tags = DatabaseManager::instance().getTagsForFile(dto.id);
         item.isAITagged = !item.tags.isEmpty();
         m_files.append(item);
     }
+    
+    m_recommendedTags = DatabaseManager::instance().getRecommendedTags(QString(), QList<int>());
+    emit recommendedTagsChanged();
     
     endResetModel();
     emit countChanged();
@@ -225,10 +238,14 @@ void LibraryModel::performSearch()
         item.contentHash = dto.contentHash;
         item.storageMode = dto.storageMode;
         item.createdAt = dto.createdAt;
+        item.isDir = dto.isDir;
         item.tags = DatabaseManager::instance().getTagsForFile(dto.id);
         item.isAITagged = !item.tags.isEmpty();
         m_files.append(item);
     }
+    
+    m_recommendedTags = DatabaseManager::instance().getRecommendedTags(m_searchKeyword, m_selectedTagIds);
+    emit recommendedTagsChanged();
     
     endResetModel();
     emit countChanged();
@@ -246,6 +263,7 @@ FileItem LibraryModel::fileFromDTO(int fileId)
         item.contentHash = dto.contentHash;
         item.storageMode = dto.storageMode;
         item.createdAt = dto.createdAt;
+        item.isDir = dto.isDir;
         item.tags = DatabaseManager::instance().getTagsForFile(dto.id);
         item.isAITagged = !item.tags.isEmpty();
     }

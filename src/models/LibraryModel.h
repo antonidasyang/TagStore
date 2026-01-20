@@ -15,6 +15,7 @@ struct FileItem {
     qint64 createdAt = 0;
     QStringList tags;
     bool isAITagged = false;
+    bool isDir = false;
 };
 
 class LibraryModel : public QAbstractListModel
@@ -23,6 +24,7 @@ class LibraryModel : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(QString searchKeyword READ searchKeyword WRITE setSearchKeyword NOTIFY searchKeywordChanged)
     Q_PROPERTY(QList<int> selectedTagIds READ selectedTagIds WRITE setSelectedTagIds NOTIFY selectedTagIdsChanged)
+    Q_PROPERTY(QVariantList recommendedTags READ recommendedTags NOTIFY recommendedTagsChanged)
     
 public:
     enum Roles {
@@ -35,7 +37,8 @@ public:
         CreatedAtRole,
         TagsRole,
         IsAITaggedRole,
-        ThumbnailRole
+        ThumbnailRole,
+        IsDirRole
     };
     Q_ENUM(Roles)
     
@@ -52,6 +55,7 @@ public:
     void setSearchKeyword(const QString &keyword);
     QList<int> selectedTagIds() const;
     void setSelectedTagIds(const QList<int> &tagIds);
+    QVariantList recommendedTags() const;
     
     // Public methods
     Q_INVOKABLE void refresh();
@@ -65,6 +69,7 @@ signals:
     void countChanged();
     void searchKeywordChanged();
     void selectedTagIdsChanged();
+    void recommendedTagsChanged();
     void modelRefreshed();
     
 public slots:
@@ -80,6 +85,7 @@ private:
     QList<FileItem> m_files;
     QString m_searchKeyword;
     QList<int> m_selectedTagIds;
+    QVariantList m_recommendedTags;
 };
 
 #endif // LIBRARYMODEL_H

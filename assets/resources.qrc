@@ -1,5 +1,7 @@
 <RCC>
+    <!-- Force refresh -->
     <qresource prefix="/icons">
         <file>icon.svg</file>
+        <file alias="icon.png">icon_256.png</file>
     </qresource>
 </RCC>

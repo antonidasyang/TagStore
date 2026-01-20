@@ -76,6 +76,7 @@ bool DatabaseManager::createTables()
             filename TEXT NOT NULL,
             file_path TEXT UNIQUE NOT NULL,
             storage_mode INTEGER DEFAULT 0,
+            is_dir INTEGER DEFAULT 0,
             created_at INTEGER NOT NULL
         )
     )";
@@ -136,6 +137,11 @@ bool DatabaseManager::createTables()
     // Enable foreign keys
     query.exec("PRAGMA foreign_keys = ON");
     
+    // Migration: Add original_path if it doesn't exist
+    query.exec("ALTER TABLE files ADD COLUMN original_path TEXT");
+    // Migration: Add is_dir if it doesn't exist
+    query.exec("ALTER TABLE files ADD COLUMN is_dir INTEGER DEFAULT 0");
+    
     return true;
 }
 
@@ -149,20 +155,23 @@ bool DatabaseManager::executeQuery(QSqlQuery &query)
 }
 
 bool DatabaseManager::addFile(const QString &contentHash, const QString &filename,
-                              const QString &filePath, int storageMode)
+                              const QString &filePath, const QString &originalPath, 
+                              int storageMode, bool isDir)
 {
     QMutexLocker locker(&m_mutex);
     
     QSqlQuery query(m_database);
     query.prepare(R"(
-        INSERT INTO files (content_hash, filename, file_path, storage_mode, created_at)
-        VALUES (:hash, :name, :path, :mode, :time)
+        INSERT INTO files (content_hash, filename, file_path, original_path, storage_mode, is_dir, created_at)
+        VALUES (:hash, :name, :path, :orig, :mode, :isdir, :time)
     )");
     
     query.bindValue(":hash", contentHash);
     query.bindValue(":name", filename);
     query.bindValue(":path", filePath);
+    query.bindValue(":orig", originalPath);
     query.bindValue(":mode", storageMode);
+    query.bindValue(":isdir", isDir ? 1 : 0);
     query.bindValue(":time", QDateTime::currentSecsSinceEpoch());
     
     if (!executeQuery(query)) {
@@ -218,7 +227,9 @@ QList<FileDTO> DatabaseManager::getFilesByHash(const QString &hash)
             file.contentHash = query.value("content_hash").toString();
             file.filename = query.value("filename").toString();
             file.filePath = query.value("file_path").toString();
+            file.originalPath = query.value("original_path").toString();
             file.storageMode = query.value("storage_mode").toInt();
+            file.isDir = query.value("is_dir").toInt() == 1;
             file.createdAt = query.value("created_at").toLongLong();
             files.append(file);
         }
@@ -241,7 +252,9 @@ FileDTO DatabaseManager::getFileById(int id)
         file.contentHash = query.value("content_hash").toString();
         file.filename = query.value("filename").toString();
         file.filePath = query.value("file_path").toString();
+        file.originalPath = query.value("original_path").toString();
         file.storageMode = query.value("storage_mode").toInt();
+        file.isDir = query.value("is_dir").toInt() == 1;
         file.createdAt = query.value("created_at").toLongLong();
     }
     
@@ -262,7 +275,9 @@ FileDTO DatabaseManager::getFileByPath(const QString &path)
         file.contentHash = query.value("content_hash").toString();
         file.filename = query.value("filename").toString();
         file.filePath = query.value("file_path").toString();
+        file.originalPath = query.value("original_path").toString();
         file.storageMode = query.value("storage_mode").toInt();
+        file.isDir = query.value("is_dir").toInt() == 1;
         file.createdAt = query.value("created_at").toLongLong();
     }
     
@@ -273,6 +288,30 @@ bool DatabaseManager::removeFile(int fileId)
 {
     QMutexLocker locker(&m_mutex);
     
+    // Check if we need to delete physical file (Managed mode)
+    // Note: getFileById acquires mutex, so we need to be careful with recursive locks if not using recursive mutex
+    // QMutex is NOT recursive by default. We must allow recursive or query directly.
+    // DatabaseManager uses QMutex. It is not recursive.
+    // So we cannot call getFileById here directly if we hold the lock.
+    // BUT removeFile is the one holding the lock if we put QMutexLocker at top.
+    
+    // Helper to get file without locking (assuming caller holds lock)
+    // But getFileById locks. 
+    // We should implement internal helper or just query manually here.
+    
+    QSqlQuery check(m_database);
+    check.prepare("SELECT file_path, storage_mode FROM files WHERE id = :id");
+    check.bindValue(":id", fileId);
+    
+    QString filePath;
+    int storageMode = -1;
+    
+    if (check.exec() && check.next()) {
+        filePath = check.value("file_path").toString();
+        storageMode = check.value("storage_mode").toInt();
+    }
+    
+    // Delete from DB
     QSqlQuery query(m_database);
     query.prepare("DELETE FROM files WHERE id = :id");
     query.bindValue(":id", fileId);
@@ -281,8 +320,45 @@ bool DatabaseManager::removeFile(int fileId)
         return false;
     }
     
+    // Delete physical file if managed
+    if (storageMode == 0 && !filePath.isEmpty()) { // 0 = Managed
+        QFile file(filePath);
+        if (file.exists()) {
+            file.moveToTrash();
+        }
+    }
+    
     emit fileRemoved(fileId);
     return true;
+}
+
+bool DatabaseManager::restoreFile(int fileId)
+{
+    // Need file info first. removeFile locks mutex, so we must be careful.
+    // We can get info first (locks/unlocks), then restore (locks/unlocks or file ops), then remove (locks/unlocks).
+    
+    FileDTO file = getFileById(fileId);
+    if (file.id < 0) return false;
+    
+    // Only restore if Managed and original path is valid
+    if (file.storageMode == 0 && !file.originalPath.isEmpty()) {
+        QFile source(file.filePath);
+        if (source.exists()) {
+            // Create target dir if needed
+            QFileInfo targetInfo(file.originalPath);
+            QDir targetDir = targetInfo.absoluteDir();
+            if (!targetDir.exists()) targetDir.mkpath(".");
+            
+            // Try to rename (move)
+            if (!source.rename(file.originalPath)) {
+                // If failed (e.g. exists), error out or maybe copy?
+                qWarning() << "Failed to restore file:" << file.filePath << "to" << file.originalPath;
+                return false;
+            }
+        }
+    }
+    
+    return removeFile(fileId);
 }
 
 int DatabaseManager::getOrCreateTag(const QString &tagName)
@@ -395,6 +471,7 @@ QVariantList DatabaseManager::getAllTags()
             QVariantMap tag;
             tag["id"] = query.value("id").toInt();
             tag["name"] = query.value("name").toString();
+            tag["count"] = query.value("count").toInt();
             tags.append(tag);
         }
     }
@@ -427,6 +504,7 @@ QVariantList DatabaseManager::searchTags(const QString &keyword)
             QVariantMap tag;
             tag["id"] = query.value("id").toInt();
             tag["name"] = query.value("name").toString();
+            tag["count"] = query.value("count").toInt();
             tags.append(tag);
         }
     }
@@ -449,6 +527,106 @@ bool DatabaseManager::removeTagFromFile(int fileId, int tagId)
     
     emit tagsUpdated(fileId);
     return true;
+}
+
+bool DatabaseManager::deleteTag(int tagId)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    QSqlQuery query(m_database);
+    query.prepare("DELETE FROM tags WHERE id = :id");
+    query.bindValue(":id", tagId);
+    
+    if (executeQuery(query)) {
+        // file_tags will cascade delete due to foreign key
+        emit globalTagsChanged();
+        return true;
+    }
+    return false;
+}
+
+bool DatabaseManager::renameTag(int tagId, const QString &newName)
+{
+    QMutexLocker locker(&m_mutex);
+    QString normalized = newName.trimmed().toLower();
+    if (normalized.isEmpty()) return false;
+    
+    // Check if name exists
+    QSqlQuery check(m_database);
+    check.prepare("SELECT id FROM tags WHERE name = :name");
+    check.bindValue(":name", normalized);
+    if (check.exec() && check.next()) {
+        // Name already exists, cannot rename to it (user should merge instead)
+        return false;
+    }
+    
+    QSqlQuery query(m_database);
+    query.prepare("UPDATE tags SET name = :name WHERE id = :id");
+    query.bindValue(":name", normalized);
+    query.bindValue(":id", tagId);
+    
+    if (executeQuery(query)) {
+        emit globalTagsChanged();
+        return true;
+    }
+    return false;
+}
+
+bool DatabaseManager::mergeTags(int targetTagId, const QList<int> &sourceTagIds)
+{
+    QMutexLocker locker(&m_mutex);
+    m_database.transaction();
+    
+    bool success = true;
+    
+    for (int sourceId : sourceTagIds) {
+        if (sourceId == targetTagId) continue;
+        
+        // 1. Move associations to target tag
+        // UPDATE OR IGNORE will skip rows where (file_id, targetTagId) already exists
+        QSqlQuery update(m_database);
+        update.prepare("UPDATE OR IGNORE file_tags SET tag_id = :target WHERE tag_id = :source");
+        update.bindValue(":target", targetTagId);
+        update.bindValue(":source", sourceId);
+        if (!update.exec()) success = false;
+        
+        // 2. Delete remaining old associations (those that were skipped because target existed)
+        QSqlQuery delAssoc(m_database);
+        delAssoc.prepare("DELETE FROM file_tags WHERE tag_id = :source");
+        delAssoc.bindValue(":source", sourceId);
+        if (!delAssoc.exec()) success = false;
+        
+        // 3. Delete the source tag
+        QSqlQuery delTag(m_database);
+        delTag.prepare("DELETE FROM tags WHERE id = :source");
+        delTag.bindValue(":source", sourceId);
+        if (!delTag.exec()) success = false;
+    }
+    
+    if (success) {
+        m_database.commit();
+        emit globalTagsChanged();
+        return true;
+    } else {
+        m_database.rollback();
+        return false;
+    }
+}
+
+bool DatabaseManager::removeEmptyTags()
+{
+    QMutexLocker locker(&m_mutex);
+    
+    QSqlQuery query(m_database);
+    query.prepare("DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM file_tags)");
+    
+    if (executeQuery(query)) {
+        if (query.numRowsAffected() > 0) {
+            emit globalTagsChanged();
+        }
+        return true;
+    }
+    return false;
 }
 
 QList<FileDTO> DatabaseManager::search(const QString &keyword, const QList<int> &tagIds)
@@ -504,7 +682,9 @@ QList<FileDTO> DatabaseManager::search(const QString &keyword, const QList<int> 
             file.contentHash = query.value("content_hash").toString();
             file.filename = query.value("filename").toString();
             file.filePath = query.value("file_path").toString();
+            file.originalPath = query.value("original_path").toString();
             file.storageMode = query.value("storage_mode").toInt();
+            file.isDir = query.value("is_dir").toInt() == 1;
             file.createdAt = query.value("created_at").toLongLong();
             files.append(file);
         }
@@ -528,13 +708,96 @@ QList<FileDTO> DatabaseManager::getAllFiles()
             file.contentHash = query.value("content_hash").toString();
             file.filename = query.value("filename").toString();
             file.filePath = query.value("file_path").toString();
+            file.originalPath = query.value("original_path").toString();
             file.storageMode = query.value("storage_mode").toInt();
+            file.isDir = query.value("is_dir").toInt() == 1;
             file.createdAt = query.value("created_at").toLongLong();
             files.append(file);
         }
     }
     
     return files;
+}
+
+QVariantList DatabaseManager::getRecommendedTags(const QString &keyword, const QList<int> &tagIds)
+{
+    QMutexLocker locker(&m_mutex);
+    QVariantList results;
+    
+    // 1. Build inner query to identify matching files
+    QString innerSql = "SELECT DISTINCT f.id FROM files f "
+                       "LEFT JOIN file_tags ft ON f.id = ft.file_id "
+                       "LEFT JOIN tags t ON ft.tag_id = t.id";
+    
+    QStringList conditions;
+    
+    if (!keyword.isEmpty()) {
+        conditions << "(f.filename LIKE :keyword OR t.name LIKE :keyword)";
+    }
+    
+    // For tag filtering logic in search
+    if (!tagIds.isEmpty()) {
+        QStringList tagPlaceholders;
+        for (int i = 0; i < tagIds.size(); ++i) {
+            tagPlaceholders << QString(":tag%1").arg(i);
+        }
+        conditions << QString("f.id IN (SELECT file_id FROM file_tags WHERE tag_id IN (%1) "
+                             "GROUP BY file_id HAVING COUNT(DISTINCT tag_id) = %2)")
+                      .arg(tagPlaceholders.join(", "))
+                      .arg(tagIds.size());
+    }
+    
+    if (!conditions.isEmpty()) {
+        innerSql += " WHERE " + conditions.join(" AND ");
+    }
+    
+    // 2. Build outer query to count tags on these files
+    QString sql = QString(
+        "SELECT t.id, t.name, COUNT(ft_outer.file_id) as freq "
+        "FROM tags t "
+        "JOIN file_tags ft_outer ON t.id = ft_outer.tag_id "
+        "WHERE ft_outer.file_id IN (%1) "
+    ).arg(innerSql);
+    
+    // Exclude already selected tags from recommendations
+    if (!tagIds.isEmpty()) {
+        QStringList excludePlaceholders;
+        for (int i = 0; i < tagIds.size(); ++i) {
+            excludePlaceholders << QString(":exclude%1").arg(i);
+        }
+        sql += QString(" AND t.id NOT IN (%1)").arg(excludePlaceholders.join(", "));
+    }
+    
+    sql += " GROUP BY t.id ORDER BY freq DESC, t.name ASC LIMIT 10";
+    
+    QSqlQuery query(m_database);
+    query.prepare(sql);
+    
+    // Bind values
+    if (!keyword.isEmpty()) {
+        query.bindValue(":keyword", "%" + keyword + "%");
+    }
+    
+    for (int i = 0; i < tagIds.size(); ++i) {
+        // Bind for inner search query
+        query.bindValue(QString(":tag%1").arg(i), tagIds[i]);
+        // Bind for exclusion
+        query.bindValue(QString(":exclude%1").arg(i), tagIds[i]);
+    }
+    
+    if (query.exec()) {
+        while (query.next()) {
+            QVariantMap tag;
+            tag["id"] = query.value("id").toInt();
+            tag["name"] = query.value("name").toString();
+            tag["count"] = query.value("freq").toInt();
+            results.append(tag);
+        }
+    } else {
+        qWarning() << "getRecommendedTags query error:" << query.lastError().text();
+    }
+    
+    return results;
 }
 
 bool DatabaseManager::pushToQueue(int fileId)

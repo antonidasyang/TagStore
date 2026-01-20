@@ -105,7 +105,7 @@ void LanguageManager::initTranslations()
     QMap<QString, QString> zh;
     
     // Main
-    zh["TagStore"] = "标签仓库";
+    zh["TagStore"] = "文件库";
     zh["Settings"] = "设置";
     zh["Import Files"] = "导入文件";
     zh["Index Folder"] = "索引文件夹";
@@ -133,6 +133,7 @@ void LanguageManager::initTranslations()
     zh["Reveal in Explorer"] = "在资源管理器中显示";
     zh["Manage Tags"] = "管理标签";
     zh["Delete"] = "删除";
+    zh["Remove"] = "从库中移除";
     
     // Tag dialog
     zh["Tags for this file:"] = "此文件的标签:";
@@ -140,7 +141,11 @@ void LanguageManager::initTranslations()
     
     // Delete dialog
     zh["Delete File"] = "删除文件";
+    zh["Delete Files"] = "删除多个文件";
     zh["Are you sure you want to remove this file from the library?"] = "确定要从库中移除此文件吗？";
+    zh["Are you sure you want to remove these files from the library?"] = "确定要从库中移除这些文件吗？";
+    zh["Restore file to original location"] = "将文件恢复到原始位置";
+    zh["Delete"] = "删除";
     
     // Settings
     zh["Appearance"] = "外观";
@@ -156,6 +161,7 @@ void LanguageManager::initTranslations()
     zh["Base URL:"] = "基础 URL:";
     zh["API Key:"] = "API 密钥:";
     zh["Model:"] = "模型:";
+    zh["Auto Tag with AI"] = "自动使用 AI 打标签";
     
     // Drop
     zh["Drop files here to import"] = "拖放文件到这里以导入";
@@ -197,8 +203,55 @@ void LanguageManager::initTranslations()
     zh["AI will analyze and generate tags for selected files."] = "AI 将分析并为所选文件生成标签。";
     zh["Processing..."] = "处理中...";
     zh["Add tags to all selected files:"] = "为所有选中的文件添加标签:";
+    zh["Add tags to all selected files"] = "为所有选中的文件添加标签";
+    zh["Add New Tags"] = "添加新标签";
+    zh["Current Tags"] = "当前标签";
+    zh["Close"] = "关闭";
     zh["Enter tags separated by comma..."] = "输入标签，用逗号分隔...";
     zh["Existing tags from all files:"] = "现有的所有标签:";
+    zh["Existing tags from all files"] = "现有的所有标签";
+    
+    // Tag Manager
+    zh["Global Tag Manager"] = "全局标签管理";
+    zh["Search tags..."] = "搜索标签...";
+    zh["New Name"] = "新名称";
+    zh["Rename Tag"] = "重命名标签";
+    zh["Merge Tags"] = "合并标签";
+    zh["Merge selected tags into:"] = "将选中的标签合并到:";
+    zh["Are you sure you want to delete these tags?"] = "确定要删除这些标签吗？";
+    zh["This action cannot be undone."] = "此操作无法撤销。";
+    zh["Delete"] = "删除";
+    zh["Rename"] = "重命名";
+    zh["Merge"] = "合并";
+    zh["Remove Empty Tags"] = "移除空标签";
+    zh["Are you sure you want to remove all unused tags?"] = "确定要移除所有未使用的标签吗？";
+    zh["Are you sure you want to remove this reference from the library?"] = "确定要从库中移除此索引吗？";
+    
+    // Wait Dialog
+    zh["Waiting for Background Tasks"] = "等待后台任务";
+    zh["AI tasks are currently running. Please wait..."] = "AI 任务正在运行，请稍候...";
+    zh["The application will close automatically when tasks are finished."] = "任务完成后应用将自动关闭。";
+    zh["Force Quit"] = "强制退出";
+    
+    // Misc
+    zh["No tags"] = "无标签";
+    zh["Delete Tag"] = "删除标签";
+    zh["Show"] = "显示";
+    zh["Show Main Window"] = "显示主窗口";
+    zh["Exit"] = "退出";
+    
+    // Folder Import Dialog
+    zh["Import Folders"] = "导入文件夹";
+    zh["Folders detected. How would you like to import them?"] = "检测到文件夹。您希望如何导入它们？";
+    zh["Import as Single Items (Reference)"] = "作为单个项目导入 (引用)";
+    zh["Scan Contents Recursively"] = "递归扫描内容";
+    
+    // Import Options
+    zh["Default Drop Action:"] = "默认拖放操作:";
+    zh["Move to Library"] = "移动到库";
+    zh["Link to Original"] = "链接到原始位置";
+    zh["Import Options"] = "导入选项";
+    zh["Start Minimized"] = "启动时最小化";
     
     m_translations["zh_CN"] = zh;
 }

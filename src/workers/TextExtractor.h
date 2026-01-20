@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QProcess>
 
 class TextExtractor : public QObject
 {
@@ -10,24 +11,34 @@ class TextExtractor : public QObject
     
 public:
     explicit TextExtractor(QObject *parent = nullptr);
-    
-    // Extract text from various file types
-    Q_INVOKABLE QString extractText(const QString &filePath);
+    ~TextExtractor();
     
     // Check if file type is supported
     Q_INVOKABLE static bool isSupported(const QString &filePath);
     Q_INVOKABLE static QStringList supportedExtensions();
     
+public slots:
+    // Start async extraction
+    void startExtraction(int fileId, const QString &filePath);
+    
 signals:
-    void extractionComplete(const QString &filePath, const QString &text);
-    void extractionError(const QString &filePath, const QString &error);
+    void extractionFinished(int fileId, const QString &text);
+    void extractionError(int fileId, const QString &error);
+    
+private slots:
+    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onProcessError(QProcess::ProcessError error);
     
 private:
-    QString extractFromPdf(const QString &filePath);
-    QString extractFromText(const QString &filePath);
-    QString extractFromMarkdown(const QString &filePath);
+    void extractFromPdf(const QString &filePath);
+    void extractFromText(const QString &filePath);
+    void extractFromMarkdown(const QString &filePath);
+    void extractFromDirectory(const QString &filePath);
     
     static QString getFileExtension(const QString &filePath);
+    
+    QProcess *m_process;
+    int m_currentFileId;
 };
 
 #endif // TEXTEXTRACTOR_H

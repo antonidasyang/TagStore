@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import Qt.labs.platform
+import Qt.labs.platform as Platform
 
 Window {
     id: dropWindow
@@ -9,12 +9,15 @@ Window {
     property int _langTrigger: languageManager.updateTrigger
     function t(text) { _langTrigger; return languageManager.t(text) }
     
-    width: 200
-    height: 200
+    signal requestShowWindow()
+    signal requestExit()
+    
+    width: 100
+    height: 100
     x: Screen.width - width - 50
     y: Screen.height - height - 100
     
-    flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput
+    flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     color: "transparent"
     visible: true
     
@@ -22,13 +25,13 @@ Window {
         id: balloon
         
         anchors.centerIn: parent
-        width: 160
-        height: 160
-        radius: 80
+        width: 70
+        height: 70
+        radius: 14
         
         color: themeManager.surface
         border.color: isDragOver ? themeManager.primary : themeManager.border
-        border.width: isDragOver ? 3 : 1
+        border.width: isDragOver ? 2 : 1
         
         property bool isDragOver: false
         
@@ -39,77 +42,135 @@ Window {
         
         scale: isDragOver ? 1.1 : 1.0
         
-        layer.enabled: true
-        layer.effect: Item {
-            property var source
+        Image {
+            anchors.centerIn: parent
+            width: 64
+            height: 64
+            source: "qrc:/icons/icon.png"
+            sourceSize.width: 64
+            sourceSize.height: 64
+            opacity: 1.0
             
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: -10
-                radius: balloon.radius + 10
-                color: "transparent"
-                
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: parent.width - 20
-                    height: parent.height - 20
-                    radius: balloon.radius
-                    color: themeManager.shadow
-                }
-            }
+            Behavior on opacity { NumberAnimation { duration: 200 } }
         }
         
-        Column {
-            anchors.centerIn: parent
-            spacing: 10
-            
-            Text {
-                text: balloon.isDragOver ? "📥" : "📦"
-                font.pixelSize: 48
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
-            
-            Text {
-                text: balloon.isDragOver ? t("Release") : t("Drop Here")
-                color: themeManager.textPrimary
-                font.pixelSize: 14
-                font.weight: Font.Medium
-                anchors.horizontalCenter: parent.horizontalCenter
-                
-                Behavior on color { ColorAnimation { duration: 200 } }
-            }
+        Text {
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 4
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: balloon.isDragOver ? t("Release") : ""
+            color: themeManager.primary
+            font.pixelSize: 11
+            font.weight: Font.Bold
+            visible: balloon.isDragOver
         }
         
         DropArea {
             anchors.fill: parent
+            property int lastButtons: Qt.NoButton
             
             onEntered: function(drag) {
                 drag.accepted = drag.hasUrls
                 balloon.isDragOver = true
-                dropWindow.flags = Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+                var btns = fileIngestor.mouseButtons()
+                if (btns !== 0) lastButtons = btns
+                console.log("Balloon Drag Entered. App Buttons:", btns)
+            }
+            
+            onPositionChanged: function(drag) {
+                var btns = fileIngestor.mouseButtons()
+                if (btns !== 0) lastButtons = btns
             }
             
             onExited: {
                 balloon.isDragOver = false
-                dropWindow.flags = Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput
             }
             
             onDropped: function(drop) {
                 balloon.isDragOver = false
-                dropWindow.flags = Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput
+                console.log("Balloon Dropped. Last Buttons:", lastButtons, "Proposed Action:", drop.proposedAction)
                 
                 if (drop.hasUrls) {
-                    var mode = drop.modifiers & Qt.AltModifier ? 1 : 0
-                    fileIngestor.processDroppedFiles(drop.urls, mode)
+                    // Check for Right Button (using cached state) OR Ambiguous action (typical for right-drag on Windows)
+                    var isRightButton = (lastButtons & Qt.RightButton)
+                    var isAmbiguous = (drop.proposedAction & Qt.MoveAction) && (drop.proposedAction & Qt.CopyAction)
+                    
+                    if (lastButtons & Qt.RightButton) {
+                        console.log("Balloon Right Click Drop -> Show Menu")
+                        dropWindow.requestActivate()
+                        dropActionMenu.droppedUrls = drop.urls
+                        dropActionMenu.open()
+                    } else {
+                        console.log("Balloon Left Click Drop -> Default Action")
+                        var mode = libraryConfig.defaultImportMode
+                        if (drop.modifiers & Qt.AltModifier) mode = 1
+                        fileIngestor.processDroppedFiles(drop.urls, mode)
+                    }
                 }
+                // Reset
+                lastButtons = Qt.NoButton
+            }
+        }
+        
+        Platform.Menu {
+            id: dropActionMenu
+            property var droppedUrls: []
+            
+            Platform.MenuItem {
+                text: t("Move to Library")
+                onTriggered: fileIngestor.processDroppedFiles(dropActionMenu.droppedUrls, 0)
+            }
+            Platform.MenuItem {
+                text: t("Link to Original")
+                onTriggered: fileIngestor.processDroppedFiles(dropActionMenu.droppedUrls, 1)
+            }
+            Platform.MenuSeparator {}
+            Platform.MenuItem {
+                text: t("Cancel")
             }
         }
         
         MouseArea {
             anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: true
             
-            onClicked: {
-                dropWindow.flags = Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput
+            property point startPos
+            
+            onPressed: function(mouse) {
+                startPos = Qt.point(mouse.x, mouse.y)
+            }
+            
+            onPositionChanged: function(mouse) {
+                if (pressedButtons & Qt.LeftButton) {
+                    var delta = Qt.point(mouse.x - startPos.x, mouse.y - startPos.y)
+                    dropWindow.x += delta.x
+                    dropWindow.y += delta.y
+                }
+            }
+            
+            onClicked: function(mouse) {
+                if (mouse.button === Qt.RightButton) {
+                    contextMenu.open()
+                }
+            }
+            
+            onDoubleClicked: {
+                dropWindow.requestShowWindow()
+            }
+        }
+        
+        Platform.Menu {
+            id: contextMenu
+            
+            Platform.MenuItem {
+                text: t("Show Main Window")
+                onTriggered: dropWindow.requestShowWindow()
+            }
+            
+            Platform.MenuItem {
+                text: t("Exit")
+                onTriggered: dropWindow.requestExit()
             }
         }
     }

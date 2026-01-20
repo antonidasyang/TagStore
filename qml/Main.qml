@@ -2,16 +2,94 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Qt.labs.platform as Platform
 import "components"
 
 ApplicationWindow {
     id: window
-    width: 1200
-    height: 800
+    width: libraryConfig.windowWidth
+    height: libraryConfig.windowHeight
+    x: libraryConfig.windowX !== -1 ? libraryConfig.windowX : (Screen.width - width) / 2
+    y: libraryConfig.windowY !== -1 ? libraryConfig.windowY : (Screen.height - height) / 2
+    visibility: libraryConfig.windowMaximized ? Window.Maximized : Window.Windowed
+    
     minimumWidth: 800
     minimumHeight: 600
     visible: true
-    title: "TagStore"
+    title: t("TagStore")
+    
+    Component.onCompleted: {
+        if (libraryConfig.startMinimized) {
+            window.visible = false
+        }
+    }
+    
+    property bool forceQuit: false
+    property bool isQuitting: false
+    
+    onClosing: function(close) {
+        if (isQuitting) {
+            if (llmProcessor.isBusy && !forceQuit) {
+                close.accepted = false
+                quitWaitDialog.open()
+            } else {
+                // Save state
+                libraryConfig.windowMaximized = (window.visibility === Window.Maximized)
+                if (window.visibility === Window.Windowed) {
+                    libraryConfig.windowWidth = window.width
+                    libraryConfig.windowHeight = window.height
+                    libraryConfig.windowX = window.x
+                    libraryConfig.windowY = window.y
+                }
+                // Accepted by default
+            }
+        } else {
+            // Minimize to tray
+            close.accepted = false
+            window.hide()
+            dropBalloon.show()
+        }
+    }
+    
+    onVisibilityChanged: {
+        if (visibility === Window.Minimized) {
+            window.hide()
+            dropBalloon.show()
+        }
+    }
+    
+    Platform.SystemTrayIcon {
+        visible: true
+        icon.source: "qrc:/icons/icon.png"
+        tooltip: t("TagStore")
+        
+        onActivated: function(reason) {
+            if (reason === Platform.SystemTrayIcon.Trigger) {
+                window.show()
+                window.raise()
+                window.requestActivate()
+            }
+        }
+        
+        menu: Platform.Menu {
+            Platform.MenuItem {
+                text: t("Show Main Window")
+                onTriggered: {
+                    window.show()
+                    window.raise()
+                    window.requestActivate()
+                }
+            }
+            
+            Platform.MenuItem {
+                text: t("Exit")
+                onTriggered: {
+                    window.isQuitting = true
+                    Qt.quit()
+                }
+            }
+        }
+    }
     
     // Helper function for translations (depends on updateTrigger for reactivity)
     property int _langTrigger: languageManager.updateTrigger
@@ -20,6 +98,23 @@ ApplicationWindow {
     color: themeManager.background
     
     Behavior on color { ColorAnimation { duration: 200 } }
+    
+    // Track if any modal dialog is open to manage Esc behavior
+    property bool _anyDialogVisible: settingsDialog.visible || 
+                                     batchAITagDialog.visible || 
+                                     batchManualTagDialog.visible || 
+                                     deleteConfirmDialog.visible || 
+                                     conflictDialog.visible || 
+                                     folderImportDialog.visible ||
+                                     tagManagerDialog.visible
+    
+    // Intercept Esc to prevent Main Window from hiding/closing, unless a dialog is handling it
+    Shortcut {
+        sequence: "Esc"
+        enabled: !_anyDialogVisible
+        context: Qt.WindowShortcut
+        onActivated: resultsGrid.clearSelection()
+    }
     
     property var selectedTags: []
     property string searchText: ""
@@ -50,6 +145,7 @@ ApplicationWindow {
             
             onImportClicked: fileDialog.open()
             onIndexClicked: folderDialog.open()
+            onTagsClicked: tagManagerDialog.open()
             onSettingsClicked: settingsDialog.open()
         }
         
@@ -76,9 +172,10 @@ ApplicationWindow {
             // Note: Single click now selects file, double click opens it
             // fileClicked signal is no longer emitted for regular clicks
             
-            onFileContextMenu: function(fileId, filePath, mouseX, mouseY) {
+            onFileContextMenu: function(fileId, filePath, isReferenced, mouseX, mouseY) {
                 contextMenu.currentFileId = fileId
                 contextMenu.currentFilePath = filePath
+                contextMenu.currentIsReferenced = isReferenced
                 contextMenu.popup()
             }
             
@@ -111,6 +208,7 @@ ApplicationWindow {
         id: fileDialog
         title: t("Import Files")
         fileMode: FileDialog.OpenFiles
+        modality: Qt.WindowModal
         
         onAccepted: {
             fileIngestor.processDroppedFiles(selectedFiles, 0)
@@ -120,6 +218,7 @@ ApplicationWindow {
     FolderDialog {
         id: folderDialog
         title: t("Index Folder")
+        modality: Qt.WindowModal
         
         onAccepted: {
             console.log("Selected folder:", selectedFolder)
@@ -131,6 +230,7 @@ ApplicationWindow {
         
         property int currentFileId: -1
         property string currentFilePath: ""
+        property bool currentIsReferenced: false
         
         MenuItem {
             text: t("Open")
@@ -150,298 +250,30 @@ ApplicationWindow {
         MenuItem {
             text: t("Manage Tags")
             onTriggered: {
-                tagDialog.fileId = contextMenu.currentFileId
-                tagDialog.open()
+                batchManualTagDialog.fileIds = resultsGrid.selectedFileIds
+                batchManualTagDialog.open()
             }
         }
         
         MenuItem {
             text: "✨ " + t("AI Tag")
             onTriggered: {
-                aiTagSingleFile(contextMenu.currentFileId)
+                startBatchAITag(resultsGrid.selectedFileIds)
             }
         }
         
         MenuSeparator {}
         
         MenuItem {
-            text: t("Delete")
+            text: t("Remove")
             onTriggered: {
-                deleteConfirmDialog.fileId = contextMenu.currentFileId
+                deleteConfirmDialog.fileIds = resultsGrid.selectedFileIds
+                if (resultsGrid.selectedFileIds.length === 1) {
+                    deleteConfirmDialog.isReferenced = contextMenu.currentIsReferenced
+                } else {
+                    deleteConfirmDialog.isReferenced = false
+                }
                 deleteConfirmDialog.open()
-            }
-        }
-    }
-    
-    // Tag management dialog
-    Dialog {
-        id: tagDialog
-        property int fileId: -1
-        property var pendingTags: []  // Temporary tag list for editing
-        property var originalTags: [] // Original tags for comparison
-        
-        title: t("Manage Tags")
-        modal: true
-        anchors.centerIn: parent
-        width: 400
-        height: 360
-        
-        onOpened: {
-            // Load current tags into temporary list
-            if (fileId > 0) {
-                var currentTags = databaseManager.getTagsForFile(fileId)
-                pendingTags = currentTags.slice()
-                originalTags = currentTags.slice()
-            } else {
-                pendingTags = []
-                originalTags = []
-            }
-            newTagField.text = ""
-            newTagField.forceActiveFocus()
-        }
-        
-        function addTag(tagName) {
-            var trimmed = tagName.trim()
-            if (trimmed === "") return
-            // Split by comma
-            var tags = trimmed.split(",")
-            for (var i = 0; i < tags.length; i++) {
-                var t = tags[i].trim()
-                if (t !== "" && pendingTags.indexOf(t) === -1) {
-                    pendingTags.push(t)
-                }
-            }
-            pendingTags = pendingTags.slice() // Trigger update
-        }
-        
-        function removeTag(tagName) {
-            var idx = pendingTags.indexOf(tagName)
-            if (idx !== -1) {
-                pendingTags.splice(idx, 1)
-                pendingTags = pendingTags.slice() // Trigger update
-            }
-        }
-        
-        function applyChanges() {
-            // Find tags to add (in pending but not in original)
-            var toAdd = pendingTags.filter(function(t) { return originalTags.indexOf(t) === -1 })
-            // Find tags to remove (in original but not in pending)
-            var toRemove = originalTags.filter(function(t) { return pendingTags.indexOf(t) === -1 })
-            
-            // Apply additions
-            if (toAdd.length > 0) {
-                databaseManager.addTagsToFile(fileId, toAdd)
-            }
-            
-            // Apply removals
-            for (var i = 0; i < toRemove.length; i++) {
-                var tagId = databaseManager.getOrCreateTag(toRemove[i])
-                databaseManager.removeTagFromFile(fileId, tagId)
-            }
-        }
-        
-        background: Rectangle {
-            color: themeManager.surface
-            radius: 12
-            border.color: themeManager.border
-        }
-        
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 12
-            
-            Label {
-                text: t("Tags for this file:")
-                color: themeManager.textPrimary
-                font.weight: Font.Medium
-            }
-            
-            // Input field with add button
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                
-                TextField {
-                    id: newTagField
-                    Layout.fillWidth: true
-                    placeholderText: t("Enter tags separated by comma...")
-                    color: themeManager.textPrimary
-                    placeholderTextColor: themeManager.textMuted
-                    
-                    background: Rectangle {
-                        color: themeManager.background
-                        radius: 8
-                        border.color: newTagField.activeFocus ? themeManager.primary : themeManager.border
-                    }
-                    
-                    onAccepted: {
-                        tagDialog.addTag(text)
-                        text = ""
-                    }
-                }
-                
-                Rectangle {
-                    width: 36
-                    height: 36
-                    radius: 8
-                    color: addTagBtnMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
-                    
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        color: "white"
-                        font.pixelSize: 18
-                        font.bold: true
-                    }
-                    
-                    MouseArea {
-                        id: addTagBtnMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            tagDialog.addTag(newTagField.text)
-                            newTagField.text = ""
-                        }
-                    }
-                }
-            }
-            
-            // Tags display area
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                color: themeManager.background
-                radius: 8
-                border.color: themeManager.border
-                
-                Flickable {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    contentWidth: tagsFlow.width
-                    contentHeight: tagsFlow.height
-                    clip: true
-                    
-                    Flow {
-                        id: tagsFlow
-                        width: parent.width
-                        spacing: 8
-                        
-                        Repeater {
-                            model: tagDialog.pendingTags
-                            
-                            Rectangle {
-                                height: 30
-                                width: tagText.width + closeBtn.width + 20
-                                radius: 4
-                                color: themeManager.primaryLight
-                                border.color: themeManager.primary
-                                border.width: 1
-                                
-                                Row {
-                                    anchors.centerIn: parent
-                                    spacing: 6
-                                    
-                                    Text {
-                                        id: tagText
-                                        text: modelData
-                                        color: themeManager.primary
-                                        font.pixelSize: 13
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                    
-                                    Rectangle {
-                                        id: closeBtn
-                                        width: 18
-                                        height: 18
-                                        radius: 9
-                                        color: closeBtnMouse.containsMouse ? themeManager.primary : "transparent"
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "✕"
-                                            color: closeBtnMouse.containsMouse ? "white" : themeManager.primary
-                                            font.pixelSize: 10
-                                        }
-                                        
-                                        MouseArea {
-                                            id: closeBtnMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: tagDialog.removeTag(modelData)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Empty state
-                Text {
-                    anchors.centerIn: parent
-                    text: t("No tags yet")
-                    color: themeManager.textMuted
-                    font.pixelSize: 13
-                    visible: tagDialog.pendingTags.length === 0
-                }
-            }
-            
-            // Custom footer buttons
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 6
-                spacing: 12
-                
-                Item { Layout.fillWidth: true }
-                
-                Rectangle {
-                    Layout.preferredWidth: 80
-                    Layout.preferredHeight: 36
-                    radius: 8
-                    color: cancelTagsMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
-                    border.color: themeManager.border
-                    
-                    Text {
-                        anchors.centerIn: parent
-                        text: t("Cancel")
-                        color: themeManager.textSecondary
-                    }
-                    
-                    MouseArea {
-                        id: cancelTagsMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: tagDialog.reject()
-                    }
-                }
-                
-                Rectangle {
-                    Layout.preferredWidth: 80
-                    Layout.preferredHeight: 36
-                    radius: 8
-                    color: okTagsMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
-                    
-                    Text {
-                        anchors.centerIn: parent
-                        text: t("OK")
-                        color: "white"
-                    }
-                    
-                    MouseArea {
-                        id: okTagsMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            tagDialog.applyChanges()
-                            tagDialog.accept()
-                        }
-                    }
-                }
             }
         }
     }
@@ -449,12 +281,21 @@ ApplicationWindow {
     // Delete confirmation dialog
     Dialog {
         id: deleteConfirmDialog
-        property int fileId: -1
+        property var fileIds: []
+        property bool isReferenced: false
         
-        title: t("Delete File")
         modal: true
+        closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
         width: 400
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: deleteConfirmDialog.visible
+            onActivated: deleteConfirmDialog.close()
+        }
         
         background: Rectangle {
             color: themeManager.surface
@@ -466,11 +307,49 @@ ApplicationWindow {
             anchors.fill: parent
             spacing: 20
             
+            Text {
+                text: deleteConfirmDialog.fileIds.length > 1 ? t("Delete Files") : t("Delete File")
+                color: themeManager.textPrimary
+                font.pixelSize: 18
+                font.weight: Font.Bold
+            }
+            
             Label {
-                text: t("Are you sure you want to remove this file from the library?")
+                text: {
+                    if (deleteConfirmDialog.fileIds.length === 1) {
+                        return deleteConfirmDialog.isReferenced ? 
+                            t("Are you sure you want to remove this reference from the library?") : 
+                            t("Are you sure you want to remove this file from the library?")
+                    } else {
+                        return t("Are you sure you want to remove these files from the library?")
+                    }
+                }
                 color: themeManager.textPrimary
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
+            }
+            
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+                visible: !deleteConfirmDialog.isReferenced
+                
+                ButtonGroup {
+                    id: deleteOptionGroup
+                }
+                
+                RadioButton {
+                    id: restoreRadio
+                    text: t("Restore file to original location")
+                    checked: true
+                    ButtonGroup.group: deleteOptionGroup
+                }
+                
+                RadioButton {
+                    id: deleteRadio
+                    text: t("Delete")
+                    ButtonGroup.group: deleteOptionGroup
+                }
             }
             
             RowLayout {
@@ -519,7 +398,16 @@ ApplicationWindow {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            databaseManager.removeFile(deleteConfirmDialog.fileId)
+                            for (var i = 0; i < deleteConfirmDialog.fileIds.length; i++) {
+                                var fid = deleteConfirmDialog.fileIds[i]
+                                if (deleteConfirmDialog.isReferenced) {
+                                    databaseManager.removeFile(fid)
+                                } else if (restoreRadio.checked) {
+                                    databaseManager.restoreFile(fid)
+                                } else {
+                                    databaseManager.removeFile(fid)
+                                }
+                            }
                             deleteConfirmDialog.accept()
                         }
                     }
@@ -532,11 +420,18 @@ ApplicationWindow {
     Dialog {
         id: settingsDialog
         
-        title: t("Settings")
         modal: true
+        closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
         width: 540
-        height: 560
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: settingsDialog.visible
+            onActivated: settingsDialog.close()
+        }
         
         background: Rectangle {
             color: themeManager.surface
@@ -547,6 +442,49 @@ ApplicationWindow {
         ColumnLayout {
             anchors.fill: parent
             spacing: 20
+            
+            Text {
+                text: t("Settings")
+                color: themeManager.textPrimary
+                font.pixelSize: 18
+                font.weight: Font.Bold
+            }
+            
+            // General Section
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                
+                Label {
+                    text: t("General")
+                    color: themeManager.textPrimary
+                    font.pixelSize: 14
+                    font.weight: Font.DemiBold
+                }
+                
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: generalContent.height + 24
+                    color: themeManager.background
+                    radius: 8
+                    border.color: themeManager.border
+                    
+                    ColumnLayout {
+                        id: generalContent
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 12
+                        spacing: 12
+                        
+                        CheckBox {
+                            id: startMinCheck
+                            text: t("Start Minimized")
+                            checked: libraryConfig.startMinimized
+                        }
+                    }
+                }
+            }
             
             // Appearance Section
             ColumnLayout {
@@ -593,6 +531,8 @@ ApplicationWindow {
                                 onActivated: function(index) {
                                     themeManager.setThemeMode(index)
                                 }
+                                
+                                onModelChanged: currentIndex = themeManager.themeMode
                             }
                         }
                         
@@ -614,6 +554,8 @@ ApplicationWindow {
                                 onActivated: function(index) {
                                     languageManager.setLanguageMode(index)
                                 }
+                                
+                                onModelChanged: currentIndex = languageManager.languageMode
                             }
                         }
                     }
@@ -684,6 +626,59 @@ ApplicationWindow {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: libraryFolderDialog.open()
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Import Section
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                
+                Label {
+                    text: t("Import Options")
+                    color: themeManager.textPrimary
+                    font.pixelSize: 14
+                    font.weight: Font.DemiBold
+                }
+                
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: importContent.height + 24
+                    color: themeManager.background
+                    radius: 8
+                    border.color: themeManager.border
+                    
+                    ColumnLayout {
+                        id: importContent
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 12
+                        spacing: 12
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            
+                            Label { 
+                                text: t("Default Drop Action:")
+                                color: themeManager.textSecondary
+                                Layout.preferredWidth: 120
+                            }
+                            
+                            ComboBox {
+                                id: importActionCombo
+                                Layout.fillWidth: true
+                                model: [t("Move to Library"), t("Link to Original")]
+                                currentIndex: libraryConfig.defaultImportMode
+                                
+                                onActivated: function(index) {
+                                    libraryConfig.setDefaultImportMode(index)
+                                }
+                                
+                                onModelChanged: currentIndex = libraryConfig.defaultImportMode
                             }
                         }
                     }
@@ -859,6 +854,16 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            
+                            CheckBox {
+                                id: autoTagCheck
+                                text: t("Auto Tag with AI")
+                                checked: libraryConfig.autoAiTag
+                            }
+                        }
                     }
                 }
             }
@@ -918,6 +923,8 @@ ApplicationWindow {
                             llmClient.baseUrl = apiBaseUrlField.text
                             llmClient.apiKey = apiKeyField.text
                             llmClient.model = modelCombo.editText
+                            libraryConfig.autoAiTag = autoTagCheck.checked
+                            libraryConfig.startMinimized = startMinCheck.checked
                             settingsDialog.accept()
                             console.log("Settings saved. LLM configured:", llmClient.isConfigured())
                         }
@@ -938,20 +945,67 @@ ApplicationWindow {
     // Drop area
     DropArea {
         anchors.fill: parent
+        property int lastButtons: Qt.NoButton
         
         onEntered: function(drag) {
             drag.accepted = drag.hasUrls
             dropOverlay.visible = true
+            var btns = fileIngestor.mouseButtons()
+            if (btns !== 0) lastButtons = btns
+            console.log("Drag Entered. App Buttons:", btns)
+        }
+        
+        onPositionChanged: function(drag) {
+            var btns = fileIngestor.mouseButtons()
+            if (btns !== 0) lastButtons = btns
         }
         
         onExited: dropOverlay.visible = false
         
         onDropped: function(drop) {
             dropOverlay.visible = false
+            console.log("Dropped. Last Buttons:", lastButtons, "Proposed Action:", drop.proposedAction)
+            
             if (drop.hasUrls) {
-                var mode = drop.modifiers & Qt.AltModifier ? 1 : 0
-                fileIngestor.processDroppedFiles(drop.urls, mode)
+                // Check for Right Button (using cached state) OR Ambiguous action (typical for right-drag on Windows)
+                var isRightButton = (lastButtons & Qt.RightButton)
+                var isAmbiguous = (drop.proposedAction & Qt.MoveAction) && (drop.proposedAction & Qt.CopyAction)
+                
+                if (isRightButton || isAmbiguous) {
+                    console.log("Right Click Drop detected -> Show Menu")
+                    dropMenu.droppedUrls = drop.urls
+                    dropMenu.popup()
+                } else {
+                    console.log("Left Click Drop detected -> Default Action")
+                    // Left Button - Use default or modifier
+                    var mode = libraryConfig.defaultImportMode
+                    if (drop.modifiers & Qt.AltModifier) mode = 1 // Alt forces Link
+                    fileIngestor.processDroppedFiles(drop.urls, mode)
+                }
             }
+            // Reset for next drag
+            lastButtons = Qt.NoButton
+        }
+    }
+    
+    Menu {
+        id: dropMenu
+        property var droppedUrls: []
+        
+        modal: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        
+        MenuItem {
+            text: t("Move to Library")
+            onTriggered: fileIngestor.processDroppedFiles(dropMenu.droppedUrls, 0)
+        }
+        MenuItem {
+            text: t("Link to Original")
+            onTriggered: fileIngestor.processDroppedFiles(dropMenu.droppedUrls, 1)
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: t("Cancel")
         }
     }
     
@@ -1003,10 +1057,29 @@ ApplicationWindow {
         target: fileIngestor
         
         function onConflictDetected(jobId, newFilename, existingPath, hash) {
-            conflictDialog.jobId = jobId
-            conflictDialog.newFilename = newFilename
-            conflictDialog.existingPath = existingPath
-            conflictDialog.open()
+            if (window.visible) {
+                conflictDialog.jobId = jobId
+                conflictDialog.newFilename = newFilename
+                conflictDialog.existingPath = existingPath
+                conflictDialog.open()
+            } else {
+                conflictWindow.jobId = jobId
+                conflictWindow.newFilename = newFilename
+                conflictWindow.existingPath = existingPath
+                conflictWindow.open()
+            }
+        }
+        
+        function onAskFolderHandling(urls, mode) {
+            if (window.visible) {
+                folderImportDialog.urls = urls
+                folderImportDialog.mode = mode
+                folderImportDialog.open()
+            } else {
+                folderImportWindow.urls = urls
+                folderImportWindow.mode = mode
+                folderImportWindow.open()
+            }
         }
         
         function onFileAdded(fileId, filename) {
@@ -1041,10 +1114,18 @@ ApplicationWindow {
         property string newFilename: ""
         property string existingPath: ""
         
-        title: t("Duplicate File Detected")
         modal: true
+        closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
         width: 480
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: conflictDialog.visible
+            onActivated: conflictDialog.close()
+        }
         
         background: Rectangle {
             color: themeManager.surface
@@ -1052,133 +1133,33 @@ ApplicationWindow {
             border.color: themeManager.border
         }
         
-        ColumnLayout {
-            spacing: 15
+        ConflictContent {
+            anchors.fill: parent
+            newFilename: conflictDialog.newFilename
+            existingPath: conflictDialog.existingPath
             
-            Label {
-                text: t("A file with the same content already exists:")
-                color: themeManager.textPrimary
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
-            
-            Rectangle {
-                Layout.fillWidth: true
-                height: existingPathText.height + 16
-                color: themeManager.background
-                radius: 6
-                
-                Label {
-                    id: existingPathText
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    text: conflictDialog.existingPath
-                    color: themeManager.textMuted
-                    font.pixelSize: 12
-                    wrapMode: Text.Wrap
-                }
-            }
-            
-            Label {
-                text: t("New file: ") + conflictDialog.newFilename
-                color: themeManager.textPrimary
-            }
-            
-            Label {
-                text: t("What would you like to do?")
-                color: themeManager.textSecondary
-            }
-        }
-        
-        footer: RowLayout {
-            spacing: 10
-            
-            Item { Layout.fillWidth: true }
-            
-            // Skip button
-            Rectangle {
-                Layout.preferredWidth: 80
-                Layout.preferredHeight: 36
-                radius: 8
-                color: skipMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
-                border.color: themeManager.border
-                
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Skip")
-                    color: themeManager.textSecondary
-                }
-                
-                MouseArea {
-                    id: skipMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        fileIngestor.resolveConflict(conflictDialog.jobId, 0)
-                        conflictDialog.close()
-                    }
-                }
-            }
-            
-            // Copy button
-            Rectangle {
-                Layout.preferredWidth: 120
-                Layout.preferredHeight: 36
-                radius: 8
-                color: copyMouse.containsMouse ? themeManager.surfaceHover : "transparent"
-                border.color: themeManager.primary
-                border.width: 1.5
-                
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Import as Copy")
-                    color: themeManager.primary
-                    font.pixelSize: 13
-                }
-                
-                MouseArea {
-                    id: copyMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        fileIngestor.resolveConflict(conflictDialog.jobId, 1)
-                        conflictDialog.close()
-                    }
-                }
-            }
-            
-            // Alias button
-            Rectangle {
-                Layout.preferredWidth: 110
-                Layout.preferredHeight: 36
-                radius: 8
-                color: aliasMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
-                
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Add as Alias")
-                    color: "white"
-                    font.pixelSize: 13
-                }
-                
-                MouseArea {
-                    id: aliasMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        fileIngestor.resolveConflict(conflictDialog.jobId, 2)
-                        conflictDialog.close()
-                    }
-                }
+            onResolve: function(resolution) {
+                fileIngestor.resolveConflict(conflictDialog.jobId, resolution)
+                conflictDialog.close()
             }
         }
     }
     
     DropBalloon {
         id: dropBalloon
+        transientParent: null
+        visible: true
+        
+        onRequestShowWindow: {
+            window.show()
+            window.raise()
+            window.requestActivate()
+        }
+        
+        onRequestExit: {
+            window.isQuitting = true
+            Qt.quit()
+        }
     }
     
     // Batch AI Tag dialog
@@ -1186,10 +1167,18 @@ ApplicationWindow {
         id: batchAITagDialog
         property var fileIds: []
         
-        title: "✨ " + t("AI Tag") + " (" + fileIds.length + t(" files") + ")"
         modal: true
+        closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
         width: 400
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: batchAITagDialog.visible
+            onActivated: batchAITagDialog.close()
+        }
         
         background: Rectangle {
             color: themeManager.surface
@@ -1202,10 +1191,18 @@ ApplicationWindow {
             spacing: 16
             
             Text {
+                text: "✨ " + t("AI Tag") + " (" + batchAITagDialog.fileIds.length + t(" files") + ")"
+                color: themeManager.textPrimary
+                font.pixelSize: 18
+                font.weight: Font.Bold
+            }
+            
+            Text {
                 text: t("AI will analyze and generate tags for selected files.")
                 color: themeManager.textSecondary
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
+                font.pixelSize: 13
             }
             
             Text {
@@ -1223,52 +1220,61 @@ ApplicationWindow {
             }
         }
         
-        footer: RowLayout {
-            spacing: 10
+        footer: Item {
+            implicitHeight: 60
+            width: parent.width
             
-            Item { Layout.fillWidth: true }
-            
-            Rectangle {
-                Layout.preferredWidth: 80
-                Layout.preferredHeight: 36
-                radius: 8
-                color: cancelAIMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
-                border.color: themeManager.border
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 24
+                anchors.rightMargin: 24
+                anchors.bottomMargin: 12
+                spacing: 10
                 
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Cancel")
-                    color: themeManager.textSecondary
+                Item { Layout.fillWidth: true }
+                
+                Rectangle {
+                    Layout.preferredWidth: 80
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: cancelAIMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
+                    border.color: themeManager.border
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Cancel")
+                        color: themeManager.textSecondary
+                    }
+                    
+                    MouseArea {
+                        id: cancelAIMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: batchAITagDialog.close()
+                    }
                 }
                 
-                MouseArea {
-                    id: cancelAIMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: batchAITagDialog.close()
-                }
-            }
-            
-            Rectangle {
-                Layout.preferredWidth: 100
-                Layout.preferredHeight: 36
-                radius: 8
-                color: startAIMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
-                
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Start")
-                    color: "white"
-                }
-                
-                MouseArea {
-                    id: startAIMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        startBatchAITag(batchAITagDialog.fileIds)
+                Rectangle {
+                    Layout.preferredWidth: 100
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: startAIMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Start")
+                        color: "white"
+                    }
+                    
+                    MouseArea {
+                        id: startAIMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            startBatchAITag(batchAITagDialog.fileIds)
+                        }
                     }
                 }
             }
@@ -1279,11 +1285,30 @@ ApplicationWindow {
     Dialog {
         id: batchManualTagDialog
         property var fileIds: []
+        property var currentTags: [] // For single file management
         
-        title: "🏷️ " + t("Manual Tag") + " (" + fileIds.length + t(" files") + ")"
         modal: true
+        closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
         width: 400
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: batchManualTagDialog.visible
+            onActivated: batchManualTagDialog.close()
+        }
+        
+        onOpened: {
+            if (fileIds.length === 1) {
+                currentTags = databaseManager.getTagsForFile(fileIds[0])
+            } else {
+                currentTags = []
+            }
+            batchTagField.text = ""
+            batchTagField.forceActiveFocus()
+        }
         
         background: Rectangle {
             color: themeManager.surface
@@ -1296,8 +1321,95 @@ ApplicationWindow {
             spacing: 16
             
             Text {
-                text: t("Add tags to all selected files:")
+                text: batchManualTagDialog.fileIds.length === 1 ? t("Manage Tags") : "🏷️ " + t("Manual Tag") + " (" + batchManualTagDialog.fileIds.length + t(" files") + ")"
+                color: themeManager.textPrimary
+                font.pixelSize: 18
+                font.weight: Font.Bold
+            }
+            
+            // Single file current tags
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: batchManualTagDialog.fileIds.length === 1
+                
+                Text {
+                    text: t("Current Tags") + ":"
+                    color: themeManager.textSecondary
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                }
+                
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    
+                    Repeater {
+                        model: batchManualTagDialog.currentTags
+                        
+                        Rectangle {
+                            height: 24
+                            width: currentTagText.width + 26
+                            radius: 4
+                            color: themeManager.primaryLight
+                            border.color: themeManager.primary
+                            border.width: 0.5
+                            
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                
+                                Text {
+                                    id: currentTagText
+                                    text: modelData
+                                    color: themeManager.primary
+                                    font.pixelSize: 11
+                                }
+                                
+                                MouseArea {
+                                    width: 14
+                                    height: 14
+                                    cursorShape: Qt.PointingHandCursor
+                                    
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "✕"
+                                        color: themeManager.primary
+                                        font.pixelSize: 10
+                                    }
+                                    
+                                    onClicked: {
+                                        var tagId = databaseManager.getOrCreateTag(modelData)
+                                        databaseManager.removeTagFromFile(batchManualTagDialog.fileIds[0], tagId)
+                                        batchManualTagDialog.currentTags = databaseManager.getTagsForFile(batchManualTagDialog.fileIds[0])
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Text {
+                        text: t("No tags")
+                        color: themeManager.textMuted
+                        font.pixelSize: 11
+                        font.italic: true
+                        visible: batchManualTagDialog.currentTags.length === 0
+                    }
+                }
+                
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: themeManager.border
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 4
+                }
+            }
+            
+            Text {
+                text: batchManualTagDialog.fileIds.length === 1 ? t("Add New Tags") + ":" : t("Add tags to all selected files") + ":"
                 color: themeManager.textSecondary
+                font.pixelSize: 12
             }
             
             TextField {
@@ -1312,10 +1424,18 @@ ApplicationWindow {
                     radius: 6
                     border.color: batchTagField.activeFocus ? themeManager.primary : themeManager.border
                 }
+                
+                onAccepted: {
+                    applyBatchTags(batchManualTagDialog.fileIds, batchTagField.text)
+                    batchTagField.text = ""
+                    if (batchManualTagDialog.fileIds.length === 1) {
+                        batchManualTagDialog.currentTags = databaseManager.getTagsForFile(batchManualTagDialog.fileIds[0])
+                    }
+                }
             }
             
             Text {
-                text: t("Existing tags from all files:")
+                text: t("Existing tags from all files") + ":"
                 color: themeManager.textMuted
                 font.pixelSize: 12
             }
@@ -1360,53 +1480,65 @@ ApplicationWindow {
             }
         }
         
-        footer: RowLayout {
-            spacing: 10
+        footer: Item {
+            implicitHeight: 60
+            width: parent.width
             
-            Item { Layout.fillWidth: true }
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 24
+                anchors.rightMargin: 24
+                anchors.bottomMargin: 12
+                spacing: 10
             
-            Rectangle {
-                Layout.preferredWidth: 80
-                Layout.preferredHeight: 36
-                radius: 8
-                color: cancelManualMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
-                border.color: themeManager.border
+                Item { Layout.fillWidth: true }
                 
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Cancel")
-                    color: themeManager.textSecondary
+                Rectangle {
+                    Layout.preferredWidth: 80
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: cancelManualMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
+                    border.color: themeManager.border
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Close")
+                        color: themeManager.textSecondary
+                    }
+                    
+                    MouseArea {
+                        id: cancelManualMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: batchManualTagDialog.close()
+                    }
                 }
                 
-                MouseArea {
-                    id: cancelManualMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: batchManualTagDialog.close()
-                }
-            }
-            
-            Rectangle {
-                Layout.preferredWidth: 100
-                Layout.preferredHeight: 36
-                radius: 8
-                color: applyTagsMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
-                
-                Text {
-                    anchors.centerIn: parent
-                    text: t("Apply")
-                    color: "white"
-                }
-                
-                MouseArea {
-                    id: applyTagsMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        applyBatchTags(batchManualTagDialog.fileIds, batchTagField.text)
-                        batchManualTagDialog.close()
+                Rectangle {
+                    Layout.preferredWidth: 100
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: applyTagsMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Apply")
+                        color: "white"
+                    }
+                    
+                    MouseArea {
+                        id: applyTagsMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            applyBatchTags(batchManualTagDialog.fileIds, batchTagField.text)
+                            batchTagField.text = ""
+                            if (batchManualTagDialog.fileIds.length === 1) {
+                                batchManualTagDialog.currentTags = databaseManager.getTagsForFile(batchManualTagDialog.fileIds[0])
+                            }
+                        }
                     }
                 }
             }
@@ -1443,5 +1575,338 @@ ApplicationWindow {
         console.log("Applied tags", tags, "to", fileIds.length, "files")
         batchTagField.text = ""
         resultsGrid.clearSelection()
+    }
+    
+    TagManagerDialog {
+        id: tagManagerDialog
+    }
+    
+    // Folder Import Dialog
+    Dialog {
+        id: folderImportDialog
+        property var urls: []
+        property int mode: 0
+        
+        modal: true
+        closePolicy: Popup.CloseOnEscape
+        anchors.centerIn: parent
+        width: 450
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: folderImportDialog.visible
+            onActivated: folderImportDialog.close()
+        }
+        
+        background: Rectangle {
+            color: themeManager.surface
+            radius: 12
+            border.color: themeManager.border
+        }
+        
+        FolderImportContent {
+            anchors.fill: parent
+            
+            onCancel: folderImportDialog.close()
+            onOk: {
+                fileIngestor.processFilesWithFolderOption(
+                    folderImportDialog.urls, 
+                    folderImportDialog.mode, 
+                    recursiveChecked
+                )
+                folderImportDialog.close()
+            }
+        }
+    }
+    
+    // Windows for hidden mode
+    Window {
+        id: folderImportWindow
+        property var urls: []
+        property int mode: 0
+        
+        flags: Qt.FramelessWindowHint | Qt.Dialog | Qt.WindowStaysOnTopHint
+        modality: Qt.ApplicationModal
+        color: "transparent"
+        width: 450
+        height: folderContentWin.implicitHeight + 80
+        x: (Screen.width - width) / 2
+        y: (Screen.height - height) / 2
+        
+        function open() { show(); requestActivate() }
+        function close() { hide() }
+        
+        Shortcut {
+            sequence: "Esc"
+            context: Qt.WindowShortcut
+            enabled: folderImportWindow.visible
+            onActivated: folderImportWindow.close()
+        }
+        
+        Rectangle {
+            anchors.fill: parent
+            color: themeManager.surface
+            radius: 12
+            border.color: themeManager.border
+            focus: true
+            
+            MouseArea {
+                anchors.fill: parent
+                property point lastMousePos
+                onPressed: function(mouse) { lastMousePos = Qt.point(mouse.x, mouse.y) }
+                onPositionChanged: function(mouse) {
+                    if (pressed) {
+                        var delta = Qt.point(mouse.x - lastMousePos.x, mouse.y - lastMousePos.y)
+                        folderImportWindow.x += delta.x
+                        folderImportWindow.y += delta.y
+                    }
+                }
+            }
+            
+            FolderImportContent {
+                id: folderContentWin
+                anchors.fill: parent
+                anchors.margins: 24
+                
+                onCancel: folderImportWindow.close()
+                onOk: {
+                    fileIngestor.processFilesWithFolderOption(
+                        folderImportWindow.urls,
+                        folderImportWindow.mode,
+                        recursiveChecked
+                    )
+                    folderImportWindow.close()
+                }
+            }
+        }
+    }
+    
+    Window {
+        id: conflictWindow
+        property string jobId: ""
+        property string newFilename: ""
+        property string existingPath: ""
+        
+        flags: Qt.FramelessWindowHint | Qt.Dialog | Qt.WindowStaysOnTopHint
+        modality: Qt.ApplicationModal
+        color: "transparent"
+        width: 480
+        height: conflictContentWin.implicitHeight + 80
+        x: (Screen.width - width) / 2
+        y: (Screen.height - height) / 2
+        
+        function open() { show(); requestActivate() }
+        function close() { hide() }
+        
+        Shortcut {
+            sequence: "Esc"
+            context: Qt.WindowShortcut
+            enabled: conflictWindow.visible
+            onActivated: conflictWindow.close()
+        }
+        
+        Rectangle {
+            anchors.fill: parent
+            color: themeManager.surface
+            radius: 12
+            border.color: themeManager.border
+            focus: true
+            
+            MouseArea {
+                anchors.fill: parent
+                property point lastMousePos
+                onPressed: function(mouse) { lastMousePos = Qt.point(mouse.x, mouse.y) }
+                onPositionChanged: function(mouse) {
+                    if (pressed) {
+                        var delta = Qt.point(mouse.x - lastMousePos.x, mouse.y - lastMousePos.y)
+                        conflictWindow.x += delta.x
+                        conflictWindow.y += delta.y
+                    }
+                }
+            }
+            
+            ConflictContent {
+                id: conflictContentWin
+                anchors.fill: parent
+                anchors.margins: 24
+                newFilename: conflictWindow.newFilename
+                existingPath: conflictWindow.existingPath
+                
+                onResolve: function(resolution) {
+                    fileIngestor.resolveConflict(conflictWindow.jobId, resolution)
+                    conflictWindow.close()
+                }
+            }
+        }
+    }
+    
+    Window {
+        id: quitWaitDialog
+        
+        flags: Qt.FramelessWindowHint | Qt.Dialog | Qt.WindowStaysOnTopHint
+        modality: Qt.ApplicationModal
+        color: "transparent"
+        
+        width: 400
+        height: waitContent.implicitHeight + 80
+        
+        x: (Screen.width - width) / 2
+        y: (Screen.height - height) / 2
+        
+        function open() { show(); requestActivate() }
+        function close() { hide() }
+        
+        Shortcut {
+            sequence: "Esc"
+            context: Qt.WindowShortcut
+            enabled: quitWaitDialog.visible
+            onActivated: quitWaitDialog.close()
+        }
+        
+        Rectangle {
+            anchors.fill: parent
+            color: themeManager.surface
+            radius: 12
+            border.color: themeManager.border
+            focus: true
+            
+            MouseArea {
+                anchors.fill: parent
+                property point lastMousePos
+                onPressed: function(mouse) { lastMousePos = Qt.point(mouse.x, mouse.y) }
+                onPositionChanged: function(mouse) {
+                    if (pressed) {
+                        var delta = Qt.point(mouse.x - lastMousePos.x, mouse.y - lastMousePos.y)
+                        quitWaitDialog.x += delta.x
+                        quitWaitDialog.y += delta.y
+                    }
+                }
+            }
+            
+            Connections {
+                target: llmProcessor
+                function onIsBusyChanged() {
+                    // Check visibility using visible property for Window
+                    if (!llmProcessor.isBusy && quitWaitDialog.visible) {
+                        quitWaitDialog.close()
+                        Qt.quit()
+                    }
+                }
+            }
+            
+            ColumnLayout {
+                id: waitContent
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 20
+                
+                Text {
+                    text: t("Waiting for Background Tasks")
+                    color: themeManager.textPrimary
+                    font.pixelSize: 18
+                    font.weight: Font.Bold
+                }
+                
+                RowLayout {
+                    spacing: 16
+                    
+                    Item {
+                        Layout.preferredWidth: 36
+                        Layout.preferredHeight: 36
+                        
+                        // Background ring
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: "transparent"
+                            border.width: 3
+                            border.color: themeManager.primary
+                            opacity: 0.2
+                        }
+                        
+                        // Spinning arc
+                        Item {
+                            anchors.fill: parent
+                            clip: true
+                            Rectangle {
+                                width: parent.width
+                                height: parent.height
+                                radius: width / 2
+                                color: "transparent"
+                                border.width: 3
+                                border.color: themeManager.primary
+                                
+                                // Mask half of the circle
+                                Rectangle {
+                                    width: parent.width
+                                    height: parent.height / 2
+                                    anchors.bottom: parent.bottom
+                                    color: themeManager.surface
+                                }
+                            }
+                            
+                            RotationAnimator on rotation {
+                                from: 0
+                                to: 360
+                                duration: 800
+                                loops: Animation.Infinite
+                                running: quitWaitDialog.visible // Check visibility
+                            }
+                        }
+                    }
+                    
+                    Text {
+                        text: t("AI tasks are currently running. Please wait...")
+                        color: themeManager.textPrimary
+                        font.pixelSize: 14
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+                }
+                
+                Text {
+                    text: t("The application will close automatically when tasks are finished.")
+                    color: themeManager.textSecondary
+                    font.pixelSize: 12
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                
+                // Footer (Buttons)
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 10
+                    spacing: 10
+                    
+                    Item { Layout.fillWidth: true }
+                    
+                    Rectangle {
+                        Layout.preferredWidth: 100
+                        Layout.preferredHeight: 36
+                        radius: 8
+                        color: forceQuitMouse.containsMouse ? "#dc2626" : "#ef4444"
+                        
+                        Text {
+                            anchors.centerIn: parent
+                            text: t("Force Quit")
+                            color: "white"
+                        }
+                        
+                        MouseArea {
+                            id: forceQuitMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                forceQuit = true
+                                Qt.quit()
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

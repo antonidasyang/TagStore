@@ -1,9 +1,20 @@
 # Build directories
 build/
+build-*/
 cmake-build-*/
 out/
 bin/
 lib/
+
+# Qt Creator
+.qtcreator/
+*.pro.user*
+*.qmlproject.user
+*.creator.user*
+
+# AI Tooling
+.gemini-clipboard/
+.gemini/
 
 # CMake generated files
 CMakeCache.txt

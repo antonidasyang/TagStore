@@ -148,20 +148,16 @@ void LLMClient::generateTags(const QString &documentText, int fileId)
     
     QJsonObject systemMessage;
     systemMessage["role"] = "system";
-    systemMessage["content"] = R"(You are a document tagging assistant. Analyze the provided document text and generate relevant tags that describe its content, type, and topics. 
+    systemMessage["content"] = R"(You are a professional document analysis assistant. Your task is to generate highly specific tags based ONLY on the provided text or filename.
 
-Return your response as a JSON object with a single key "tags" containing an array of tag strings.
+Return a JSON object: {"tags": ["tag1", "tag2", ...]}
 
-Guidelines:
-- Generate 3-10 relevant tags
-- Tags should be lowercase
-- Tags should be single words or short phrases (2-3 words max)
-- Include document type tags (e.g., "invoice", "report", "contract")
-- Include topic tags (e.g., "finance", "legal", "technical")
-- Include any dates, company names, or key identifiers found
-
-Example response:
-{"tags": ["invoice", "2024", "acme corp", "payment", "services"]})";
+Strict Rules:
+1. NEVER use names, dates, or companies from examples (e.g., do NOT use 'acme corp' or '2024' unless they appear in the input).
+2. For filenames like 'Chapter 2.docx', generate tags like 'chapter', 'manuscript', 'writing'.
+3. Tags must be lowercase, concise, and derived from the input.
+4. If the input is just a filename, infer the most likely context but remain realistic.
+5. Do not include generic placeholders.)";
     messages.append(systemMessage);
     
     QJsonObject userMessage;

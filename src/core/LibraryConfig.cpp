@@ -30,6 +30,22 @@ void LibraryConfig::loadSettings()
     m_temperature = m_settings.value("api/temperature", 0.3).toDouble();
     m_cachedModels = m_settings.value("api/cachedModels", QStringList{"gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"}).toStringList();
     
+    // Window settings
+    m_windowX = m_settings.value("window/x", -1).toInt();
+    m_windowY = m_settings.value("window/y", -1).toInt();
+    m_windowWidth = m_settings.value("window/width", 1200).toInt();
+    m_windowHeight = m_settings.value("window/height", 800).toInt();
+    m_windowMaximized = m_settings.value("window/maximized", 0).toInt();
+    
+    // AI settings
+    m_autoAiTag = m_settings.value("ai/autoTag", true).toBool();
+    
+    // Import settings
+    m_defaultImportMode = m_settings.value("import/defaultMode", 0).toInt();
+    
+    // Startup settings
+    m_startMinimized = m_settings.value("startup/minimized", false).toBool();
+    
     // Ensure library directory exists
     ensureDirectoryExists(m_libraryPath);
 }
@@ -43,6 +59,17 @@ void LibraryConfig::saveSettings()
     m_settings.setValue("api/maxTokens", m_maxTokens);
     m_settings.setValue("api/temperature", m_temperature);
     m_settings.setValue("api/cachedModels", m_cachedModels);
+    
+    m_settings.setValue("window/x", m_windowX);
+    m_settings.setValue("window/y", m_windowY);
+    m_settings.setValue("window/width", m_windowWidth);
+    m_settings.setValue("window/height", m_windowHeight);
+    m_settings.setValue("window/maximized", m_windowMaximized);
+    
+    m_settings.setValue("ai/autoTag", m_autoAiTag);
+    m_settings.setValue("import/defaultMode", m_defaultImportMode);
+    m_settings.setValue("startup/minimized", m_startMinimized);
+    
     m_settings.sync();
 }
 
@@ -187,5 +214,85 @@ void LibraryConfig::setCachedModels(const QStringList &models)
         m_cachedModels = models;
         saveSettings();
         emit cachedModelsChanged();
+    }
+}
+
+int LibraryConfig::windowX() const { return m_windowX; }
+void LibraryConfig::setWindowX(int x)
+{
+    if (m_windowX != x) {
+        m_windowX = x;
+        saveSettings();
+        emit windowXChanged();
+    }
+}
+
+int LibraryConfig::windowY() const { return m_windowY; }
+void LibraryConfig::setWindowY(int y)
+{
+    if (m_windowY != y) {
+        m_windowY = y;
+        saveSettings();
+        emit windowYChanged();
+    }
+}
+
+int LibraryConfig::windowWidth() const { return m_windowWidth; }
+void LibraryConfig::setWindowWidth(int w)
+{
+    if (m_windowWidth != w) {
+        m_windowWidth = w;
+        saveSettings();
+        emit windowWidthChanged();
+    }
+}
+
+int LibraryConfig::windowHeight() const { return m_windowHeight; }
+void LibraryConfig::setWindowHeight(int h)
+{
+    if (m_windowHeight != h) {
+        m_windowHeight = h;
+        saveSettings();
+        emit windowHeightChanged();
+    }
+}
+
+int LibraryConfig::windowMaximized() const { return m_windowMaximized; }
+void LibraryConfig::setWindowMaximized(int maximized)
+{
+    if (m_windowMaximized != maximized) {
+        m_windowMaximized = maximized;
+        saveSettings();
+        emit windowMaximizedChanged();
+    }
+}
+
+bool LibraryConfig::autoAiTag() const { return m_autoAiTag; }
+void LibraryConfig::setAutoAiTag(bool enable)
+{
+    if (m_autoAiTag != enable) {
+        m_autoAiTag = enable;
+        saveSettings();
+        emit autoAiTagChanged();
+    }
+}
+
+int LibraryConfig::defaultImportMode() const { return m_defaultImportMode; }
+void LibraryConfig::setDefaultImportMode(int mode)
+{
+    if (m_defaultImportMode != mode) {
+        m_defaultImportMode = mode;
+        saveSettings();
+        emit defaultImportModeChanged();
+    }
+}
+
+bool LibraryConfig::startMinimized() const { return m_startMinimized; }
+void LibraryConfig::setStartMinimized(bool enable)
+{
+    if (m_startMinimized != enable) {
+        m_startMinimized = enable;
+        saveSettings();
+        emit startMinimizedChanged();
     }
 }

@@ -10,12 +10,25 @@ Rectangle {
     property string filePath: ""
     property bool isReferenced: false
     property bool isAITagged: false
+    property bool isDir: false
     property var tags: []
     
     // Selection support
     property bool isSelected: false
     property bool isFocused: false  // Keyboard focus indicator
     
+    // Dynamic tag calculation
+    property int visibleTagCount: 0
+    
+    onWidthChanged: visibleTagCount = calculateVisibleTagCount()
+    onTagsChanged: visibleTagCount = calculateVisibleTagCount()
+    Component.onCompleted: visibleTagCount = calculateVisibleTagCount()
+
+    FontMetrics {
+        id: fontMetrics
+        font.pixelSize: 11
+    }
+
     signal clicked(bool ctrlKey, bool shiftKey)
     signal rightClicked(real mouseX, real mouseY)
     signal tagClicked(string tagName)
@@ -45,6 +58,7 @@ Rectangle {
     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
     
     ColumnLayout {
+        z: 2
         anchors.fill: parent
         anchors.margins: 10
         spacing: 6
@@ -62,7 +76,7 @@ Rectangle {
             // File type icon
             Text {
                 anchors.centerIn: parent
-                text: getFileIcon(root.filename)
+                text: root.isDir ? "📁" : getFileIcon(root.filename)
                 font.pixelSize: 36
                 opacity: 0.9
             }
@@ -133,7 +147,7 @@ Rectangle {
                 
                 Repeater {
                     id: visibleTagsRepeater
-                    model: root.tags.slice(0, getVisibleTagCount())
+                    model: root.tags.slice(0, root.visibleTagCount)
                     
                     Rectangle {
                         width: Math.min(tagText.implicitWidth + 10, 70)
@@ -172,7 +186,7 @@ Rectangle {
                 // Expand button if more tags
                 Rectangle {
                     id: expandBtn
-                    visible: root.tags.length > getVisibleTagCount()
+                    visible: root.tags.length > root.visibleTagCount
                     width: moreText.width + 10
                     height: 20
                     radius: 4
@@ -183,7 +197,7 @@ Rectangle {
                     Text {
                         id: moreText
                         anchors.centerIn: parent
-                        text: "+" + (root.tags.length - getVisibleTagCount())
+                        text: "+" + (root.tags.length - root.visibleTagCount)
                         color: expandTagsMouse.containsMouse ? "white" : themeManager.textMuted
                         font.pixelSize: 11
                         
@@ -209,7 +223,7 @@ Rectangle {
         id: tagsPopup
         x: 0
         y: root.height - 10
-        width: Math.max(root.width, tagsPopupFlow.implicitWidth + 24)
+        width: Math.max(root.width, 250)
         height: Math.min(tagsPopupFlow.implicitHeight + 40, 200)
         
         padding: 12
@@ -220,10 +234,7 @@ Rectangle {
             border.color: themeManager.primary
             border.width: 1
             
-            layer.enabled: true
-            layer.effect: Item {
-                // Shadow effect simulation
-            }
+            // Removed broken layer effect
         }
         
         // Close on click outside
@@ -357,19 +368,39 @@ Rectangle {
         }
     }
     
-    function getVisibleTagCount() {
-        // Calculate how many tags can fit in one row
-        // Assuming avg tag width of 60px and spacing of 3px
-        var availableWidth = root.width - 20  // margins
-        var avgTagWidth = 55
-        var expandBtnWidth = 35
+    function calculateVisibleTagCount() {
+        if (!root.tags || root.tags.length === 0) return 0
         
-        if (root.tags.length <= 2) {
-            return root.tags.length
+        var availableWidth = root.width - 20  // margins (10 left + 10 right)
+        var expandBtnWidth = 35
+        var spacing = 3
+        
+        var currentWidth = 0
+        var count = 0
+        var n = root.tags.length
+        
+        for (var i = 0; i < n; i++) {
+            var tagStr = root.tags[i]
+            // Calculate tag width: text width + padding (10), capped at 70
+            var w = Math.min(fontMetrics.advanceWidth(tagStr) + 10, 70)
+            
+            // Space needed for this tag
+            var spaceForTag = (i > 0 ? spacing : 0) + w
+            
+            // Space needed if we stop after this tag (and it's not the last one)
+            // If we stop here, we need to show the expand button
+            var spaceForExpand = (i < n - 1) ? (spacing + expandBtnWidth) : 0
+            
+            if (currentWidth + spaceForTag + spaceForExpand <= availableWidth) {
+                currentWidth += spaceForTag
+                count++
+            } else {
+                break
+            }
         }
         
-        var count = Math.floor((availableWidth - expandBtnWidth) / (avgTagWidth + 3))
-        return Math.max(1, Math.min(count, root.tags.length))
+        // Always show at least one tag if there are tags
+        return Math.max(1, count)
     }
     
     function getFileIcon(filename) {

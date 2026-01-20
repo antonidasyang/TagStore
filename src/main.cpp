@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     app.setApplicationName("TagStore");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("TagStore");
-    app.setWindowIcon(QIcon(":/icons/icon.svg"));
+    app.setWindowIcon(QIcon(":/icons/icon.png"));
     
     // Initialize core components
     LibraryConfig &config = LibraryConfig::instance();
@@ -71,6 +71,13 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty()) {
         return -1;
     }
+    
+    // Ensure app quits when window closes
+    app.setQuitOnLastWindowClosed(true);
+    QObject::connect(&engine, &QQmlApplicationEngine::quit, &app, &QGuiApplication::quit);
+    
+    // Stop processor on exit
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &llmProcessor, &LLMProcessor::stop);
     
     // Start LLM processor to handle AI tagging queue
     llmProcessor.start();

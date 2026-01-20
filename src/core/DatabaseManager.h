@@ -16,7 +16,9 @@ struct FileDTO {
     QString contentHash;
     QString filename;
     QString filePath;
+    QString originalPath; // Original location before import
     int storageMode = 0; // 0=Managed, 1=Referenced
+    bool isDir = false;
     qint64 createdAt = 0;
 };
 
@@ -44,13 +46,15 @@ public:
     
     // File operations
     Q_INVOKABLE bool addFile(const QString &contentHash, const QString &filename,
-                             const QString &filePath, int storageMode);
+                             const QString &filePath, const QString &originalPath, 
+                             int storageMode, bool isDir = false);
     Q_INVOKABLE bool hashExists(const QString &hash);
     Q_INVOKABLE bool pathExists(const QString &path);
     Q_INVOKABLE QList<FileDTO> getFilesByHash(const QString &hash);
     Q_INVOKABLE FileDTO getFileById(int id);
     Q_INVOKABLE FileDTO getFileByPath(const QString &path);
     Q_INVOKABLE bool removeFile(int fileId);
+    Q_INVOKABLE bool restoreFile(int fileId); // Restore to original path
     
     // Tag operations
     Q_INVOKABLE int getOrCreateTag(const QString &tagName);
@@ -61,9 +65,18 @@ public:
     Q_INVOKABLE QVariantList searchTags(const QString &keyword);
     Q_INVOKABLE bool removeTagFromFile(int fileId, int tagId);
     
+    // Global tag maintenance
+    Q_INVOKABLE bool deleteTag(int tagId);
+    Q_INVOKABLE bool renameTag(int tagId, const QString &newName);
+    Q_INVOKABLE bool mergeTags(int targetTagId, const QList<int> &sourceTagIds);
+    Q_INVOKABLE bool removeEmptyTags();
+    
     // Search operations
     Q_INVOKABLE QList<FileDTO> search(const QString &keyword, const QList<int> &tagIds);
     Q_INVOKABLE QList<FileDTO> getAllFiles();
+    
+    // New method for tag recommendation
+    Q_INVOKABLE QVariantList getRecommendedTags(const QString &keyword, const QList<int> &tagIds);
     
     // Queue operations
     Q_INVOKABLE bool pushToQueue(int fileId);
@@ -75,6 +88,7 @@ signals:
     void fileAdded(int fileId);
     void fileRemoved(int fileId);
     void tagsUpdated(int fileId);
+    void globalTagsChanged();
     void databaseError(const QString &error);
     
 private:

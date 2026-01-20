@@ -13,7 +13,7 @@ Rectangle {
     
     property var selectedTagIds: []
     property var selectedTagNames: []  // Store names for display
-    property var recommendedTags: []   // Tags from search results
+    property var recommendedTags: libraryModel.recommendedTags   // Bound to C++ model
     
     signal tagSelectionChanged(var tagIds)
     signal tagRemoved(int tagId)
@@ -165,7 +165,7 @@ Rectangle {
                         Text {
                             id: suggestTagText
                             anchors.centerIn: parent
-                            text: modelData.name
+                            text: modelData.name + " (" + modelData.count + ")"
                             color: themeManager.textSecondary
                             font.pixelSize: 11
                         }
@@ -242,41 +242,5 @@ Rectangle {
         selectedTagIds = []
         selectedTagNames = []
         tagSelectionChanged([])
-    }
-    
-    // Update recommended tags based on search results
-    function updateRecommendedTags(fileTagsList) {
-        // Count tag occurrences from search results
-        var tagCounts = {}
-        var tagNames = {}
-        
-        for (var i = 0; i < fileTagsList.length; i++) {
-            var tags = fileTagsList[i]
-            for (var j = 0; j < tags.length; j++) {
-                var tag = tags[j]
-                // Skip if already in selected tags
-                if (selectedTagIds.indexOf(tag.id) === -1) {
-                    if (tagCounts[tag.id]) {
-                        tagCounts[tag.id]++
-                    } else {
-                        tagCounts[tag.id] = 1
-                        tagNames[tag.id] = tag.name
-                    }
-                }
-            }
-        }
-        
-        // Sort by count and take top 5
-        var sorted = Object.keys(tagCounts).sort(function(a, b) {
-            return tagCounts[b] - tagCounts[a]
-        })
-        
-        var recommended = []
-        for (var k = 0; k < Math.min(sorted.length, 5); k++) {
-            var id = parseInt(sorted[k])
-            recommended.push({ id: id, name: tagNames[id], count: tagCounts[id] })
-        }
-        
-        recommendedTags = recommended
     }
 }

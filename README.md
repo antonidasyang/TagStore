@@ -1,191 +1,117 @@
-# TagStore
+# TagStore: AI-Powered Digital Asset Management (DAM)
 
-[English](README.md) | [中文](README_zh_CN.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Framework](https://img.shields.io/badge/Qt-6.10+-41cd52.svg?logo=qt)](https://www.qt.io/)
+[![Language](https://img.shields.io/badge/C++-20-00599C.svg?logo=c%2B%2B)](https://isocpp.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/)
 
-A cross-platform Digital Asset Management (DAM) tool for personal high-volume file organization. TagStore decouples physical storage from logical retrieval using AI-powered auto-tagging.
+[English](README.md) | [中文 (Chinese)](README_zh_CN.md)
 
-## Features
+**TagStore** is a modern, open-source **Digital Asset Management (DAM)** tool and **File Organizer** designed for researchers, creatives, and data hoarders. It decouples logical retrieval from physical storage using **AI-powered auto-tagging** and semantic categorization.
 
-- **Dual Import Modes**
-  - **Managed Mode**: Move files to centralized library (`~/Documents/TagStore_Library/YYYY/MM/`)
-  - **Referenced Mode**: Index files in-place without moving (Alt + Drop)
+Stop wasting time organizing folders. Let TagStore build your **Personal Knowledge Management (PKM)** system locally.
 
-- **Smart Deduplication**
-  - SHA-256 content hashing
-  - Conflict resolution: Reject / Import as Copy / Merge as Alias
+---
 
-- **AI Auto-Tagging** (OpenAI Compatible API)
-  - Automatic text extraction (PDF, TXT, MD)
-  - LLM-powered tag generation
-  - Supports OpenAI, Azure OpenAI, and compatible services
+## 🚀 Key Features
 
-- **Faceted Search**
-  - Keyword search with 300ms debounce
-  - Tag filtering (AND/OR logic)
-  - Visual distinction for referenced vs managed files
+### 📂 Smart File Organization
+- **Dual Import Modes**:
+  - **Managed Mode**: Functions as a secure vault (like Eagle/Billfish), moving files to a centralized library (`~/Documents/TagStore_Library`).
+  - **Referenced Mode**: Indexes files in-place without moving them (Alt + Drop), perfect for large datasets on NAS or external drives.
+- **Folder Support**: Seamlessly import entire directory structures recursively or as single reference items.
+- **Recycle Bin Integration**: Safe file deletion that respects your OS recycle bin.
 
-- **Modern UI**
-  - Floating drop balloon for quick imports
-  - Adaptive grid layout with thumbnails
-  - Dark theme with smooth animations
+### 🧠 AI & Automation
+- **AI Auto-Tagging**: Connects to **OpenAI-compatible APIs** (OpenAI, Azure, LocalAI, Ollama) to automatically analyze and tag documents.
+- **Content Extraction**: Built-in engine extracts text from **PDF, Markdown, TXT, and Code** files for context-aware tagging.
+- **Batch Processing**: Background job queue for processing thousands of files without UI freezing.
 
-## Tech Stack
+### 🔍 Search & Retrieval
+- **Faceted Search**: Combine multiple tags (AND/OR logic) with keyword search.
+- **Debounced Filtering**: Instant search results with a 300ms debounce for performance.
+- **Visual Distinction**: Clear UI indicators for managed vs. referenced files.
 
-| Component | Technology |
-|-----------|------------|
-| Framework | Qt 6.10+ (C++20) |
-| UI | QML |
-| Database | SQLite |
-| Architecture | MVVM |
-| LLM | OpenAI-compatible API |
+### 🖥️ Modern Experience
+- **Cross-Platform**: Native performance on Windows, macOS, and Linux using **Qt 6 / QML**.
+- **Drop Balloon**: A floating desktop widget ("Drop Zone") for drag-and-drop imports while the main app is minimized to the system tray.
+- **Adaptive UI**: Responsive Grid and List views with dark/light mode support.
+- **Context Menu Integration**: Right-click actions for quick management (Move vs. Link options).
 
-## Build
+---
+
+## 🛠️ Tech Stack
+
+Built for performance and longevity.
+
+| Component | Technology | Description |
+|-----------|------------|-------------|
+| **Core** | C++20 | High-performance backend logic |
+| **Framework** | Qt 6.10+ | Cross-platform application framework |
+| **UI** | QML (Qt Quick) | Fluid, GPU-accelerated interface |
+| **Data** | SQLite | Serverless, zero-config metadata storage |
+| **AI** | REST API | OpenAI-compatible client for LLM integration |
+
+---
+
+## 📦 Build & Installation
 
 ### Prerequisites
+- **Qt 6.10+** (Modules: Core, Quick, Sql, Network, Concurrent)
+- **CMake 3.16+**
+- **C++ Compiler** (MSVC 2019+, GCC 11+, Clang 12+, or LLVM-MinGW)
+- **Ninja** (Recommended build system)
 
-- Qt 6.10+ with modules: Core, Quick, Sql, Network, Concurrent
-- CMake 3.16+
-- Ninja (recommended) or other build system
-- LLVM-MinGW or MinGW compiler
-
-### Build Steps
+### Quick Start (Windows PowerShell)
 
 ```powershell
-# Clone and enter directory
+# 1. Clone the repository
+git clone https://github.com/your-username/TagStore.git
 cd TagStore
 
-# Create build directory
-mkdir build && cd build
+# 2. Configure build (Example using LLVM-MinGW)
+mkdir build; cd build
+cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
 
-# Configure (LLVM-MinGW example)
-$env:PATH = "D:\Qt\Tools\llvm-mingw1706_64\bin;D:\Qt\Tools\CMake_64\bin;D:\Qt\Tools\Ninja;" + $env:PATH
+# 3. Compile
+cmake --build .
 
-cmake .. -G "Ninja" `
-  -DCMAKE_PREFIX_PATH="D:\Qt\6.10.1\llvm-mingw_64" `
-  -DCMAKE_CXX_COMPILER="clang++.exe"
-
-# Build
-cmake --build . --config Release
-
-# Deploy dependencies
-D:\Qt\6.10.1\llvm-mingw_64\bin\windeployqt.exe --qmldir ..\qml .\TagStore.exe
-
-# Copy LLVM runtime (if using LLVM-MinGW)
-Copy-Item "D:\Qt\Tools\llvm-mingw1706_64\bin\libc++.dll" .
-Copy-Item "D:\Qt\Tools\llvm-mingw1706_64\bin\libunwind.dll" .
+# 4. Deploy (Windows only)
+windeployqt.exe --qmldir ..\qml .\TagStore.exe
 ```
 
-## Configuration
+---
 
-### OpenAI API Setup
+## ⚙️ Configuration
 
-1. Click the **Settings** (⚙️) button
-2. Configure:
-   - **API Base URL**: `https://api.openai.com/v1` (or compatible endpoint)
-   - **API Key**: Your API key
-   - **Model**: `gpt-4o-mini`, `gpt-3.5-turbo`, etc.
+### 🤖 LLM Setup (For Auto-Tagging)
+TagStore works with any OpenAI-compatible provider.
+1. Go to **Settings** (⚙️).
+2. Enter your **API Key** and **Base URL**.
+   - *OpenAI*: `https://api.openai.com/v1`
+   - *LocalAI/Ollama*: `http://localhost:8080/v1`
+3. Select your model (e.g., `gpt-4o`, `llama3`).
 
-Alternatively, set environment variable:
-```powershell
-$env:OPENAI_API_KEY = "sk-..."
-```
+### 🖱️ Drag & Drop Behavior
+Customize how you want to import files by default in **Settings > Import Options**:
+- **Default Action**: Move to Library OR Link to Original.
+- **Right-Click Drop**: Always prompts for choice.
 
-### Library Path
+---
 
-Default: `~/Documents/TagStore_Library`
+## 🗺️ Roadmap
 
-Configurable in Settings. The database (`tagstore.db`) resides in the library root for portability.
+- [x] Basic CRUD & Tagging
+- [x] AI Auto-Tagging (Text/PDF)
+- [x] System Tray & Drop Balloon
+- [ ] Image Recognition / OCR
+- [ ] Plugin System
+- [ ] WebDAV Sync
 
-## Usage
+## 🤝 Contributing
 
-### Import Files
+Contributions are welcome! Please submit Pull Requests or open Issues for bug reports.
 
-| Action | Mode |
-|--------|------|
-| Drag & Drop | Managed (move to library) |
-| Alt + Drag & Drop | Referenced (index in-place) |
-| Click **+ Import** | File picker (Managed) |
-| Click **🔗 Index** | Folder picker (Referenced) |
+## 📄 License
 
-### Search & Filter
-
-- Type in search box for keyword search
-- Click tag chips to filter by tags
-- Multiple tags = AND logic
-
-### File Actions (Right-click)
-
-- Open
-- Reveal in Explorer
-- Manage Tags
-- Delete
-
-## Project Structure
-
-```
-TagStore/
-├── CMakeLists.txt
-├── src/
-│   ├── main.cpp
-│   ├── core/
-│   │   ├── DatabaseManager.h/cpp    # SQLite operations
-│   │   ├── FileHasher.h/cpp         # SHA-256 async hashing
-│   │   ├── LibraryConfig.h/cpp      # Configuration management
-│   │   └── LLMClient.h/cpp          # OpenAI API client
-│   ├── models/
-│   │   └── LibraryModel.h/cpp       # QAbstractListModel for GridView
-│   ├── viewmodels/
-│   │   └── FileIngestor.h/cpp       # File import controller
-│   └── workers/
-│       ├── LLMProcessor.h/cpp       # Background AI processing
-│       └── TextExtractor.h/cpp      # PDF/text extraction
-└── qml/
-    ├── Main.qml                     # Main window
-    ├── DropBalloon.qml              # Floating import widget
-    └── components/
-        ├── GlobalHeader.qml
-        ├── TagFilterBar.qml
-        ├── TagChip.qml
-        ├── ResultsGrid.qml
-        └── FileCard.qml
-```
-
-## Database Schema
-
-```sql
--- Files table
-files (id, content_hash, filename, file_path UNIQUE, storage_mode, created_at)
-
--- Tags table  
-tags (id, name UNIQUE)
-
--- Junction table
-file_tags (file_id, tag_id, PRIMARY KEY)
-
--- AI processing queue
-processing_queue (id, file_id, status, error_log)
-```
-
-## License
-
-MIT License
-
-Copyright (c) 2024 TagStore Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.

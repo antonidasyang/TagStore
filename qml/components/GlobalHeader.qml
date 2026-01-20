@@ -14,6 +14,7 @@ Rectangle {
     signal searchTextChanged(string text)
     signal importClicked()
     signal indexClicked()
+    signal tagsClicked()
     signal settingsClicked()
     
     Behavior on color { ColorAnimation { duration: 200 } }
@@ -63,6 +64,11 @@ Rectangle {
                     font.pixelSize: 13
                     
                     verticalAlignment: Text.AlignVCenter
+                    
+                    Keys.onEscapePressed: {
+                        text = ""
+                        event.accepted = true
+                    }
                     
                     background: Item {}
                     
@@ -157,6 +163,40 @@ Rectangle {
                 
                 ToolTip.visible: indexBtnMouse.containsMouse
                 ToolTip.text: t("🔗 Index")
+                ToolTip.delay: 500
+            }
+            
+            // Tag Manager button (icon only)
+            Rectangle {
+                id: tagsBtn
+                Layout.preferredWidth: 36
+                Layout.preferredHeight: 36
+                radius: 8
+                
+                color: tagsBtnMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
+                border.color: themeManager.border
+                border.width: 1
+                scale: tagsBtnMouse.pressed ? 0.94 : 1.0
+                
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+                
+                Text {
+                    anchors.centerIn: parent
+                    text: "🏷️"
+                    font.pixelSize: 18
+                }
+                
+                MouseArea {
+                    id: tagsBtnMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.tagsClicked()
+                }
+                
+                ToolTip.visible: tagsBtnMouse.containsMouse
+                ToolTip.text: t("Global Tag Manager")
                 ToolTip.delay: 500
             }
             

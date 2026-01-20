@@ -55,6 +55,9 @@ set(QML_FILES
     qml/components/GlobalHeader.qml
     qml/components/TagFilterBar.qml
     qml/components/ResultsGrid.qml
+    qml/components/TagManagerDialog.qml
+    qml/components/ConflictContent.qml
+    qml/components/FolderImportContent.qml
 )
 
 # Resources

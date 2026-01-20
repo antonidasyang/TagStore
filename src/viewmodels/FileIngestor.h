@@ -36,11 +36,16 @@ public:
     // Main import methods
     Q_INVOKABLE void processDroppedFiles(const QList<QUrl> &urls, int mode = Managed);
     Q_INVOKABLE void processDroppedFile(const QUrl &url, int mode = Managed);
+    Q_INVOKABLE void processFilesWithFolderOption(const QList<QUrl> &urls, int mode, bool recursive);
     Q_INVOKABLE void resolveConflict(const QString &jobId, int resolution);
     Q_INVOKABLE void cancelPendingJobs();
     
+    // Helper to get global mouse buttons (workaround for QML issues)
+    Q_INVOKABLE int mouseButtons() const;
+    
 signals:
     void isProcessingChanged();
+    void askFolderHandling(const QList<QUrl> &urls, int mode);
     void fileProcessingStarted(const QString &filename);
     void fileAdded(int fileId, const QString &filename);
     void conflictDetected(const QString &jobId, const QString &newFilename, 

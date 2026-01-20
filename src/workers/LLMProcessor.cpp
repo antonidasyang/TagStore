@@ -8,15 +8,29 @@
 LLMProcessor::LLMProcessor(LLMClient *client, QObject *parent)
     : QObject(parent)
     , m_llmClient(client)
-    , m_textExtractor(new TextExtractor(this))
+    , m_textExtractor(new TextExtractor()) // Worker object, no parent
+    , m_workerThread(new QThread(this))
     , m_pollTimer(new QTimer(this))
     , m_isRunning(false)
+    , m_isExtracting(false)
     , m_currentQueueId(-1)
     , m_currentFileId(-1)
 {
+    // Move extractor to worker thread
+    m_textExtractor->moveToThread(m_workerThread);
+    
+    // Connect extraction signals
+    connect(this, &LLMProcessor::startExtraction, m_textExtractor, &TextExtractor::startExtraction);
+    connect(m_textExtractor, &TextExtractor::extractionFinished, this, &LLMProcessor::onExtractionFinished);
+    connect(m_textExtractor, &TextExtractor::extractionError, this, &LLMProcessor::onExtractionError);
+    
+    // Start worker thread
+    m_workerThread->start();
+    
     connect(m_pollTimer, &QTimer::timeout, this, &LLMProcessor::pollQueue);
     connect(m_llmClient, &LLMClient::tagsGenerated, this, &LLMProcessor::onTagsGenerated);
     connect(m_llmClient, &LLMClient::errorOccurred, this, &LLMProcessor::onLLMError);
+    connect(m_llmClient, &LLMClient::isProcessingChanged, this, &LLMProcessor::isBusyChanged);
     
     // Poll every 2 seconds
     m_pollTimer->setInterval(2000);
@@ -25,6 +39,8 @@ LLMProcessor::LLMProcessor(LLMClient *client, QObject *parent)
 LLMProcessor::~LLMProcessor()
 {
     stop();
+    m_workerThread->quit();
+    m_workerThread->wait();
 }
 
 bool LLMProcessor::isRunning() const
@@ -61,16 +77,21 @@ void LLMProcessor::stop()
     }
 }
 
+bool LLMProcessor::isBusy() const
+{
+    return m_isExtracting || (m_llmClient && m_llmClient->isProcessing());
+}
+
 void LLMProcessor::processNow()
 {
-    if (m_isRunning && !m_llmClient->isProcessing()) {
+    if (m_isRunning && !isBusy()) {
         pollQueue();
     }
 }
 
 void LLMProcessor::pollQueue()
 {
-    if (!m_isRunning || m_llmClient->isProcessing()) {
+    if (!m_isRunning || isBusy()) {
         return;
     }
     
@@ -100,6 +121,8 @@ void LLMProcessor::processItem(int queueId, int fileId)
 {
     m_currentQueueId = queueId;
     m_currentFileId = fileId;
+    m_isExtracting = true;
+    emit isBusyChanged();
     
     // Update status to processing
     DatabaseManager::instance().updateQueueStatus(queueId, 1); // 1 = Processing
@@ -107,22 +130,49 @@ void LLMProcessor::processItem(int queueId, int fileId)
     // Get file info
     FileDTO file = DatabaseManager::instance().getFileById(fileId);
     if (file.id < 0) {
+        m_isExtracting = false;
         onLLMError(fileId, "File not found in database");
         return;
     }
     
     emit processingStarted(fileId);
     
-    // Extract text from file
-    QString text = m_textExtractor->extractText(file.filePath);
+    // Start extraction in worker thread
+    emit startExtraction(fileId, file.filePath);
+}
+
+void LLMProcessor::onExtractionFinished(int fileId, const QString &text)
+{
+    if (fileId != m_currentFileId) return;
     
-    if (text.isEmpty()) {
-        // If extraction failed, use filename and any available metadata
-        text = QString("Filename: %1").arg(file.filename);
+    m_isExtracting = false;
+    emit isBusyChanged();
+    
+    if (m_isRunning) {
+        QString finalText = text;
+        if (finalText.isEmpty()) {
+             // Fallback
+             FileDTO file = DatabaseManager::instance().getFileById(fileId);
+             finalText = QString("Filename: %1").arg(file.filename);
+        }
+        m_llmClient->generateTags(finalText, fileId);
     }
+}
+
+void LLMProcessor::onExtractionError(int fileId, const QString &error)
+{
+    if (fileId != m_currentFileId) return;
     
-    // Send to LLM for tag generation
-    m_llmClient->generateTags(text, fileId);
+    qWarning() << "Extraction error for file" << fileId << ":" << error;
+    m_isExtracting = false;
+    emit isBusyChanged();
+    
+    // Fallback on error
+    if (m_isRunning) {
+        FileDTO file = DatabaseManager::instance().getFileById(fileId);
+        QString finalText = QString("Filename: %1").arg(file.filename);
+        m_llmClient->generateTags(finalText, fileId);
+    }
 }
 
 void LLMProcessor::onTagsGenerated(int fileId, const QStringList &tags)
