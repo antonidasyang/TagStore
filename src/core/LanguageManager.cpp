@@ -265,6 +265,9 @@ void LanguageManager::initTranslations()
     zh["Import Options"] = "导入选项";
     zh["Start Minimized"] = "启动时最小化";
     zh["Start with Windows"] = "开机自启动";
+
+    // Balloon
+    zh["Drop files or folders here"] = "拖放文件和文件夹";
     
     m_translations["zh_CN"] = zh;
 }

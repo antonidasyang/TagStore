@@ -158,6 +158,10 @@ Window {
             onDoubleClicked: {
                 dropWindow.requestShowWindow()
             }
+            
+            ToolTip.visible: containsMouse && !balloon.isDragOver
+            ToolTip.text: t("Drop files and folders here")
+            ToolTip.delay: 500
         }
         
         Platform.Menu {

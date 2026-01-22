@@ -61,14 +61,15 @@ void FileIngestor::processFilesWithFolderOption(const QList<QUrl> &urls, int mod
         if (!localPath.isEmpty() && info.exists()) {
             if (info.isDir()) {
                 if (recursive) {
-                    // Recursive scan
+                    // Recursive scan: Add individual files
                     QDirIterator it(localPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
                     while (it.hasNext()) {
                         m_pendingFiles.append({it.next(), mode});
                     }
                 } else {
-                    // Import directory as item (Referenced mode only)
-                    m_pendingFiles.append({localPath, Referenced});
+                    // Import directory itself as an item
+                    // FIX: Pass the requested mode (Managed or Referenced), not hardcoded Referenced
+                    m_pendingFiles.append({localPath, mode});
                 }
             } else {
                 // Regular file
@@ -226,8 +227,9 @@ void FileIngestor::importFile(const QString &sourcePath, const QString &hash, in
     QString targetPath;
     bool isDir = sourceInfo.isDir();
     
-    if (mode == Managed && !isDir) {
-        // Generate storage path and move file
+    // FIX: Allow moving directories if mode is Managed
+    if (mode == Managed) {
+        // Generate storage path and move file/folder
         targetPath = LibraryConfig::instance().generateStoragePath(filename);
         
         if (!moveFileToLibrary(sourcePath, targetPath)) {
@@ -253,15 +255,23 @@ void FileIngestor::importFile(const QString &sourcePath, const QString &hash, in
     } else {
         emit processingError(filename, "Failed to add file to database");
         
-        // If we moved the file, try to move it back
+        // If we moved the file, try to move it back (undo)
         if (mode == Managed && targetPath != sourcePath) {
-            QFile::rename(targetPath, sourcePath);
+            if (isDir) {
+                // Moving back directory logic... simplistic renaming
+                QDir().rename(targetPath, sourcePath); 
+            } else {
+                QFile::rename(targetPath, sourcePath);
+            }
         }
     }
 }
 
 bool FileIngestor::moveFileToLibrary(const QString &sourcePath, const QString &targetPath)
 {
+    QFileInfo sourceInfo(sourcePath);
+    bool isDir = sourceInfo.isDir();
+    
     QFileInfo targetInfo(targetPath);
     QDir targetDir = targetInfo.absoluteDir();
     
@@ -273,23 +283,68 @@ bool FileIngestor::moveFileToLibrary(const QString &sourcePath, const QString &t
     }
     
     // Try to rename (move) first - it's faster if on same filesystem
-    if (QFile::rename(sourcePath, targetPath)) {
-        return true;
+    if (isDir) {
+        // For directories, use QDir::rename
+        if (QDir().rename(sourcePath, targetPath)) {
+            return true;
+        }
+    } else {
+        // For files
+        if (QFile::rename(sourcePath, targetPath)) {
+            return true;
+        }
     }
     
-    // Fallback to copy + delete
-    if (QFile::copy(sourcePath, targetPath)) {
-        if (QFile::remove(sourcePath)) {
+    // Fallback to copy + delete (Cross-filesystem move)
+    if (isDir) {
+        if (copyRecursively(sourcePath, targetPath)) {
+            QDir(sourcePath).removeRecursively();
             return true;
-        } else {
-            // Copy succeeded but delete failed
-            qWarning() << "Failed to remove source file after copy:" << sourcePath;
-            return true; // Still consider success, file is in library
+        }
+    } else {
+        if (QFile::copy(sourcePath, targetPath)) {
+            if (QFile::remove(sourcePath)) {
+                return true;
+            } else {
+                // Copy succeeded but delete failed
+                qWarning() << "Failed to remove source file after copy:" << sourcePath;
+                return true; // Still consider success, file is in library
+            }
         }
     }
     
     qWarning() << "Failed to copy file:" << sourcePath << "to" << targetPath;
     return false;
+}
+
+bool FileIngestor::copyRecursively(const QString &src, const QString &dst)
+{
+    QDir srcDir(src);
+    if (!srcDir.exists()) return false;
+    
+    QDir dstDir(dst);
+    if (!dstDir.exists()) {
+        dstDir.mkpath(".");
+    }
+    
+    bool success = true;
+    QFileInfoList list = srcDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+    
+    for (const QFileInfo &info : list) {
+        QString srcItem = info.absoluteFilePath();
+        QString dstItem = dstDir.filePath(info.fileName());
+        
+        if (info.isDir()) {
+            if (!copyRecursively(srcItem, dstItem)) {
+                success = false;
+            }
+        } else {
+            if (!QFile::copy(srcItem, dstItem)) {
+                success = false;
+            }
+        }
+    }
+    return success;
 }
 
 QString FileIngestor::generateJobId()

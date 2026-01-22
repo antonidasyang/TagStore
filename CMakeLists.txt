@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(TagStore VERSION 1.0.0 LANGUAGES CXX)
+# Read version from file
+file(READ "version.txt" VER)
+string(STRIP "${VER}" VER)
 
+project(TagStore VERSION ${VER} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -65,11 +68,27 @@ set(RESOURCES
     assets/resources.qrc
 )
 
-# Windows icon resource
+# Windows icon and version resource
 if(WIN32)
-    set(WIN_ICON_RC assets/app.rc)
+    # Ensure tweak version is set (default to 0 if missing)
+    if(NOT DEFINED PROJECT_VERSION_TWEAK)
+        set(PROJECT_VERSION_TWEAK 0)
+    endif()
+    
+    # Prepare icon path with escaped backslashes for RC
+    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico" ICON_NATIVE_PATH)
+    string(REPLACE "\\" "\\\\" ICON_PATH "${ICON_NATIVE_PATH}")
+    
+    # Configure app.rc from template
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc.in
+        ${CMAKE_CURRENT_BINARY_DIR}/app.rc
+        @ONLY
+    )
+    set(WIN_ICON_RC ${CMAKE_CURRENT_BINARY_DIR}/app.rc)
 endif()
 
+# Pass version as a string literal (escaped quotes)
 add_compile_definitions(APP_VERSION="${PROJECT_VERSION}")
 
 qt_add_executable(${PROJECT_NAME}

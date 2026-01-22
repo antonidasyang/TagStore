@@ -70,6 +70,7 @@ private:
     void processNextFile();
     void importFile(const QString &sourcePath, const QString &hash, int mode);
     bool moveFileToLibrary(const QString &sourcePath, const QString &targetPath);
+    bool copyRecursively(const QString &src, const QString &dst);
     QString generateJobId();
     
     FileHasher *m_hasher;

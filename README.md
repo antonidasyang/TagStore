@@ -34,7 +34,11 @@ Stop wasting time organizing folders. Let TagStore build your **Personal Knowled
 
 ### 🖥️ Modern Experience
 - **Cross-Platform**: Native performance on Windows, macOS, and Linux using **Qt 6 / QML**.
-- **Drop Balloon**: A floating desktop widget ("Drop Zone") for drag-and-drop imports while the main app is minimized to the system tray.
+- **System Integration**: 
+  - **Start with Windows**: Option to launch automatically on startup.
+  - **Singleton**: Ensures only one instance runs; focuses the existing window on launch.
+  - **Tray Icon**: Minimizes to system tray for unobtrusive background operation.
+- **Drop Balloon**: A floating desktop widget ("Drop Zone") for drag-and-drop imports while the main app is minimized.
 - **Adaptive UI**: Responsive Grid and List views with dark/light mode support.
 - **Context Menu Integration**: Right-click actions for quick management (Move vs. Link options).
 

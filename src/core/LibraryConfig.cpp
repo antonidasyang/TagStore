@@ -118,7 +118,12 @@ QString LibraryConfig::generateStoragePath(const QString &filename) const
     
     int counter = 1;
     while (QFile::exists(targetPath)) {
-        QString newFilename = QString("%1 (%2).%3").arg(baseName).arg(counter).arg(suffix);
+        QString newFilename;
+        if (suffix.isEmpty()) {
+            newFilename = QString("%1 (%2)").arg(baseName).arg(counter);
+        } else {
+            newFilename = QString("%1 (%2).%3").arg(baseName).arg(counter).arg(suffix);
+        }
         targetPath = QDir(relativePath).filePath(newFilename);
         counter++;
     }
@@ -300,7 +305,7 @@ void LibraryConfig::setStartMinimized(bool enable)
 bool LibraryConfig::startWithWindows() const
 {
 #ifdef Q_OS_WIN
-    QSettings settings("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", QSettings::NativeFormat);
+    QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
     return settings.contains("TagStore");
 #else
     return false; // Not implemented for other platforms
@@ -310,11 +315,11 @@ bool LibraryConfig::startWithWindows() const
 void LibraryConfig::setStartWithWindows(bool enable)
 {
 #ifdef Q_OS_WIN
-    QSettings settings("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", QSettings::NativeFormat);
+    QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
     QString appPath = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
     
     if (enable) {
-        settings.setValue("TagStore", """ + appPath + """);
+        settings.setValue("TagStore", "\"" + appPath + "\"");
     } else {
         settings.remove("TagStore");
     }

@@ -4,6 +4,10 @@
 #include <QIcon>
 #include <QTranslator>
 #include <QLocale>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QTextStream>
+#include <QWindow>
 
 #include "core/DatabaseManager.h"
 #include "core/LibraryConfig.h"
@@ -19,6 +23,30 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
     
+    // --- Singleton Check ---
+    const QString serverName = "TagStoreLocalServer";
+    QLocalSocket socket;
+    socket.connectToServer(serverName);
+    
+    if (socket.waitForConnected(500)) {
+        // Instance exists, send command to show window
+        QTextStream stream(&socket);
+        stream << "SHOW";
+        stream.flush();
+        socket.waitForBytesWritten(1000);
+        return 0; // Exit this instance
+    }
+    
+    // Cleanup potentially stale server
+    QLocalServer::removeServer(serverName);
+    
+    // Start Local Server
+    QLocalServer server;
+    if (!server.listen(serverName)) {
+        qWarning() << "Failed to start local server:" << server.errorString();
+    }
+    // -----------------------
+
     app.setApplicationName("TagStore");
 #ifdef APP_VERSION
     app.setApplicationVersion(APP_VERSION);
@@ -75,6 +103,35 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty()) {
         return -1;
     }
+    
+    // --- Handle Singleton Commands ---
+    QObject::connect(&server, &QLocalServer::newConnection, &app, [&server, &engine]() {
+        QLocalSocket *clientConnection = server.nextPendingConnection();
+        QObject::connect(clientConnection, &QLocalSocket::readyRead, [clientConnection, &engine]() {
+            QTextStream stream(clientConnection);
+            QString cmd = stream.readAll();
+            
+            if (cmd == "SHOW") {
+                // Find main window and show it
+                QObject *root = engine.rootObjects().first();
+                QWindow *window = qobject_cast<QWindow*>(root);
+                if (window) {
+                    // We need to call show() and requestActivate()
+                    // But if it's minimized to tray (visible=false), show() is needed.
+                    // Invoking QML methods is safer if logic is complex.
+                    
+                    // Simple approach: set properties
+                    window->setVisible(true);
+                    window->requestActivate();
+                    
+                    // Also raise/alert
+                    window->alert(0);
+                }
+            }
+            clientConnection->deleteLater();
+        });
+    });
+    // ---------------------------------
     
     // Ensure app quits when window closes
     app.setQuitOnLastWindowClosed(true);
