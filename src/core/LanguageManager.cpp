@@ -50,7 +50,7 @@ QString LanguageManager::currentLanguage() const
 QStringList LanguageManager::availableLanguages() const
 {
     // Return translated language names
-    return {t("System"), "English", "中文"};
+    return {t("System"), t("English"), t("Chinese")};
 }
 
 QString LanguageManager::detectSystemLanguage() const
@@ -105,7 +105,7 @@ void LanguageManager::initTranslations()
     QMap<QString, QString> zh;
     
     // Main
-    zh["TagStore"] = "文件库";
+    zh["Tag Store"] = "标签文件库";
     zh["Settings"] = "设置";
     zh["Import Files"] = "导入文件";
     zh["Index Folder"] = "索引文件夹";
@@ -148,11 +148,14 @@ void LanguageManager::initTranslations()
     zh["Delete"] = "删除";
     
     // Settings
+    zh["General"] = "常规";
     zh["Appearance"] = "外观";
     zh["Theme:"] = "主题:";
     zh["Light"] = "浅色";
     zh["Dark"] = "深色";
     zh["System"] = "跟随系统";
+    zh["English"] = "English";
+    zh["Chinese"] = "中文";
     zh["Language:"] = "语言:";
     zh["Library"] = "库";
     zh["Library Path:"] = "库路径:";
@@ -177,6 +180,15 @@ void LanguageManager::initTranslations()
     zh["Skip"] = "跳过";
     zh["Import as Copy"] = "作为副本导入";
     zh["Add as Alias"] = "添加为别名";
+    
+    // Errors/Status
+    zh["Another request is in progress"] = "另一个请求正在处理中";
+    zh["API not configured. Please set API key, base URL, and model."] = "API 未配置。请在设置中设置 API 密钥、基础 URL 和模型。";
+    zh["Document text is empty"] = "文档内容为空";
+    zh["Base URL is empty"] = "基础 URL 为空";
+    zh["Failed to parse tags from response"] = "无法从响应中解析标签";
+    zh["Failed to move file to library"] = "无法将文件移动到库";
+    zh["Failed to add file to database"] = "无法将文件添加到数据库";
     
     // Common buttons
     zh["OK"] = "确定";
@@ -252,6 +264,7 @@ void LanguageManager::initTranslations()
     zh["Link to Original"] = "链接到原始位置";
     zh["Import Options"] = "导入选项";
     zh["Start Minimized"] = "启动时最小化";
+    zh["Start with Windows"] = "开机自启动";
     
     m_translations["zh_CN"] = zh;
 }

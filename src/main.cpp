@@ -20,7 +20,11 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     
     app.setApplicationName("TagStore");
+#ifdef APP_VERSION
+    app.setApplicationVersion(APP_VERSION);
+#else
     app.setApplicationVersion("1.0.0");
+#endif
     app.setOrganizationName("TagStore");
     app.setWindowIcon(QIcon(":/icons/icon.png"));
     

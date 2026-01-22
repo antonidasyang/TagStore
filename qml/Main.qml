@@ -11,16 +11,16 @@ ApplicationWindow {
     height: libraryConfig.windowHeight
     x: libraryConfig.windowX !== -1 ? libraryConfig.windowX : (Screen.width - width) / 2
     y: libraryConfig.windowY !== -1 ? libraryConfig.windowY : (Screen.height - height) / 2
-    visibility: libraryConfig.windowMaximized ? Window.Maximized : Window.Windowed
     
     minimumWidth: 800
     minimumHeight: 600
-    visible: true
-    title: t("TagStore")
+    visible: false
+    title: t("Tag Store") + " v" + Qt.application.version
     
     Component.onCompleted: {
-        if (libraryConfig.startMinimized) {
-            window.visible = false
+        if (!libraryConfig.startMinimized) {
+            window.visibility = libraryConfig.windowMaximized ? Window.Maximized : Window.Windowed
+            window.visible = true
         }
     }
     
@@ -61,7 +61,7 @@ ApplicationWindow {
     Platform.SystemTrayIcon {
         visible: true
         icon.source: "qrc:/icons/icon.png"
-        tooltip: t("TagStore")
+        tooltip: t("Tag Store")
         
         onActivated: function(reason) {
             if (reason === Platform.SystemTrayIcon.Trigger) {
@@ -482,6 +482,12 @@ ApplicationWindow {
                             text: t("Start Minimized")
                             checked: libraryConfig.startMinimized
                         }
+                        
+                        CheckBox {
+                            id: startWinCheck
+                            text: t("Start with Windows")
+                            checked: libraryConfig.startWithWindows
+                        }
                     }
                 }
             }
@@ -548,7 +554,7 @@ ApplicationWindow {
                             ComboBox {
                                 id: languageCombo
                                 Layout.fillWidth: true
-                                model: [t("System"), "English", "中文"]
+                                model: [t("System"), t("English"), t("Chinese")]
                                 currentIndex: languageManager.languageMode
                                 
                                 onActivated: function(index) {
@@ -925,6 +931,7 @@ ApplicationWindow {
                             llmClient.model = modelCombo.editText
                             libraryConfig.autoAiTag = autoTagCheck.checked
                             libraryConfig.startMinimized = startMinCheck.checked
+                            libraryConfig.startWithWindows = startWinCheck.checked
                             settingsDialog.accept()
                             console.log("Settings saved. LLM configured:", llmClient.isConfigured())
                         }

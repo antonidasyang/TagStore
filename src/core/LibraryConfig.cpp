@@ -296,3 +296,30 @@ void LibraryConfig::setStartMinimized(bool enable)
         emit startMinimizedChanged();
     }
 }
+
+bool LibraryConfig::startWithWindows() const
+{
+#ifdef Q_OS_WIN
+    QSettings settings("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", QSettings::NativeFormat);
+    return settings.contains("TagStore");
+#else
+    return false; // Not implemented for other platforms
+#endif
+}
+
+void LibraryConfig::setStartWithWindows(bool enable)
+{
+#ifdef Q_OS_WIN
+    QSettings settings("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", QSettings::NativeFormat);
+    QString appPath = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+    
+    if (enable) {
+        settings.setValue("TagStore", """ + appPath + """);
+    } else {
+        settings.remove("TagStore");
+    }
+    emit startWithWindowsChanged();
+#else
+    Q_UNUSED(enable);
+#endif
+}

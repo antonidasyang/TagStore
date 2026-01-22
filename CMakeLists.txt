@@ -70,12 +70,29 @@ if(WIN32)
     set(WIN_ICON_RC assets/app.rc)
 endif()
 
+add_compile_definitions(APP_VERSION="${PROJECT_VERSION}")
+
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     ${HEADERS}
     ${RESOURCES}
     ${WIN_ICON_RC}
 )
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(INSTALL_BIN_DIR "${CMAKE_SOURCE_DIR}/installer/bin")
+
+    file(MAKE_DIRECTORY ${INSTALL_BIN_DIR})
+
+    add_custom_command(
+        TARGET TagStore
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:TagStore>
+            ${INSTALL_BIN_DIR}/$<TARGET_FILE_NAME:TagStore>
+        COMMENT "Copying TagStore.exe to ${INSTALL_BIN_DIR}"
+    )
+endif()
 
 # Suppress Qt policy QTP0004 warning
 qt_policy(SET QTP0004 NEW)

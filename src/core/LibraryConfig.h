@@ -28,6 +28,7 @@ class LibraryConfig : public QObject
     // Import Settings
     Q_PROPERTY(int defaultImportMode READ defaultImportMode WRITE setDefaultImportMode NOTIFY defaultImportModeChanged)
     Q_PROPERTY(bool startMinimized READ startMinimized WRITE setStartMinimized NOTIFY startMinimizedChanged)
+    Q_PROPERTY(bool startWithWindows READ startWithWindows WRITE setStartWithWindows NOTIFY startWithWindowsChanged)
     
 public:
     static LibraryConfig& instance();
@@ -81,6 +82,9 @@ public:
     
     bool startMinimized() const;
     Q_INVOKABLE void setStartMinimized(bool enable);
+
+    bool startWithWindows() const;
+    Q_INVOKABLE void setStartWithWindows(bool enable);
     
 signals:
     void libraryPathChanged();
@@ -96,6 +100,7 @@ signals:
     void autoAiTagChanged();
     void defaultImportModeChanged();
     void startMinimizedChanged();
+    void startWithWindowsChanged();
     
 private:
     LibraryConfig(QObject *parent = nullptr);

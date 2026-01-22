@@ -149,3 +149,10 @@ windeployqt_output/
 # Testing
 Testing/
 test_results/
+
+# Installer
+installer/bin/
+installer/*.exe
+
+# gemini
+GEMINI.md
