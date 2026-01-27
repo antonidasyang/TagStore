@@ -5,6 +5,11 @@
 #include <QFileInfo>
 #include <QCoreApplication>
 
+const QString DEFAULT_SYSTEM_PROMPT = R"(
+    You are a professional document analysis assistant. Your task is to generate highly specific tags based ONLY on the provided text or filename.
+
+    Return a JSON object: {"tags": ["tag1", "tag2", ...]})";
+
 LibraryConfig& LibraryConfig::instance()
 {
     static LibraryConfig instance;
@@ -39,6 +44,7 @@ void LibraryConfig::loadSettings()
     
     // AI settings
     m_autoAiTag = m_settings.value("ai/autoTag", true).toBool();
+    m_systemPrompt = m_settings.value("ai/systemPrompt", DEFAULT_SYSTEM_PROMPT).toString();
     
     // Import settings
     m_defaultImportMode = m_settings.value("import/defaultMode", 0).toInt();
@@ -67,6 +73,7 @@ void LibraryConfig::saveSettings()
     m_settings.setValue("window/maximized", m_windowMaximized);
     
     m_settings.setValue("ai/autoTag", m_autoAiTag);
+    m_settings.setValue("ai/systemPrompt", m_systemPrompt);
     m_settings.setValue("import/defaultMode", m_defaultImportMode);
     m_settings.setValue("startup/minimized", m_startMinimized);
     
@@ -279,6 +286,16 @@ void LibraryConfig::setAutoAiTag(bool enable)
         m_autoAiTag = enable;
         saveSettings();
         emit autoAiTagChanged();
+    }
+}
+
+QString LibraryConfig::systemPrompt() const { return m_systemPrompt; }
+void LibraryConfig::setSystemPrompt(const QString &prompt)
+{
+    if (m_systemPrompt != prompt) {
+        m_systemPrompt = prompt;
+        saveSettings();
+        emit systemPromptChanged();
     }
 }
 

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import Qt.labs.platform as Platform
 
 Window {
@@ -131,6 +132,7 @@ Window {
         }
         
         MouseArea {
+            id: mouseArea
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
@@ -158,10 +160,6 @@ Window {
             onDoubleClicked: {
                 dropWindow.requestShowWindow()
             }
-            
-            ToolTip.visible: containsMouse && !balloon.isDragOver
-            ToolTip.text: t("Drop files and folders here")
-            ToolTip.delay: 500
         }
         
         Platform.Menu {
@@ -175,6 +173,48 @@ Window {
             Platform.MenuItem {
                 text: t("Exit")
                 onTriggered: dropWindow.requestExit()
+            }
+        }
+    }
+    
+    // Floating Hint Window (to avoid clipping)
+    Window {
+        id: hintWindow
+        flags: Qt.ToolTip | Qt.FramelessWindowHint | Qt.NoFocus | Qt.WindowStaysOnTopHint
+        color: "transparent"
+        visible: mouseArea.containsMouse && !balloon.isDragOver
+        
+        // Dynamic size based on content
+        width: hintRect.width
+        height: hintRect.height
+        
+        // Follow mouse position
+        x: dropWindow.x + balloon.x + mouseArea.mouseX
+        y: dropWindow.y + balloon.y + mouseArea.mouseY + 15
+        
+        Rectangle {
+            id: hintRect
+            width: hintText.implicitWidth + 16
+            height: hintText.implicitHeight + 10
+            radius: 4
+            color: themeManager.surface
+            border.color: themeManager.border
+            
+            Text {
+                id: hintText
+                anchors.centerIn: parent
+                text: t("Drag files and folders here")
+                color: themeManager.textPrimary
+                font.pixelSize: 12
+            }
+            
+            // Shadow effect
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowBlur: 0.5
+                shadowColor: "#40000000"
+                shadowVerticalOffset: 2
             }
         }
     }

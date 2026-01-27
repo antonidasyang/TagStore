@@ -24,6 +24,7 @@ class LibraryConfig : public QObject
     
     // AI Settings
     Q_PROPERTY(bool autoAiTag READ autoAiTag WRITE setAutoAiTag NOTIFY autoAiTagChanged)
+    Q_PROPERTY(QString systemPrompt READ systemPrompt WRITE setSystemPrompt NOTIFY systemPromptChanged)
     
     // Import Settings
     Q_PROPERTY(int defaultImportMode READ defaultImportMode WRITE setDefaultImportMode NOTIFY defaultImportModeChanged)
@@ -76,6 +77,9 @@ public:
     bool autoAiTag() const;
     Q_INVOKABLE void setAutoAiTag(bool enable);
     
+    QString systemPrompt() const;
+    Q_INVOKABLE void setSystemPrompt(const QString &prompt);
+    
     // Import Settings
     int defaultImportMode() const;
     Q_INVOKABLE void setDefaultImportMode(int mode);
@@ -98,6 +102,7 @@ signals:
     void windowHeightChanged();
     void windowMaximizedChanged();
     void autoAiTagChanged();
+    void systemPromptChanged();
     void defaultImportModeChanged();
     void startMinimizedChanged();
     void startWithWindowsChanged();
@@ -129,6 +134,7 @@ private:
     int m_windowMaximized;
     
     bool m_autoAiTag;
+    QString m_systemPrompt;
     int m_defaultImportMode;
     bool m_startMinimized;
 };

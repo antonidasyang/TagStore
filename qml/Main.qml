@@ -15,7 +15,7 @@ ApplicationWindow {
     minimumWidth: 800
     minimumHeight: 600
     visible: false
-    title: t("Tag Store") + " v" + Qt.application.version
+    title: t("TagStore") + " v" + Qt.application.version
     
     Component.onCompleted: {
         if (!libraryConfig.startMinimized) {
@@ -61,7 +61,7 @@ ApplicationWindow {
     Platform.SystemTrayIcon {
         visible: true
         icon.source: "qrc:/icons/icon.png"
-        tooltip: t("Tag Store")
+        tooltip: t("TagStore")
         
         onActivated: function(reason) {
             if (reason === Platform.SystemTrayIcon.Trigger) {
@@ -416,16 +416,16 @@ ApplicationWindow {
         }
     }
     
-    // Settings dialog
+    // Settings dialog (Two-Column Layout)
     Dialog {
         id: settingsDialog
         
         modal: true
         closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
-        width: 540
-        padding: 24
-        bottomPadding: 24
+        width: 700
+        height: 500
+        padding: 0
         
         Shortcut {
             sequence: "Esc"
@@ -437,45 +437,128 @@ ApplicationWindow {
             color: themeManager.surface
             radius: 12
             border.color: themeManager.border
+            clip: true
         }
         
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 20
+        // Header
+        header: Rectangle {
+            width: parent.width
+            height: 50
+            color: "transparent"
             
             Text {
+                anchors.centerIn: parent
                 text: t("Settings")
                 color: themeManager.textPrimary
                 font.pixelSize: 18
                 font.weight: Font.Bold
             }
             
-            // General Section
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 12
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: themeManager.border
+            }
+        }
+        
+        // Main Content
+        contentItem: RowLayout {
+            spacing: 0
+            
+            // Sidebar
+            Rectangle {
+                Layout.preferredWidth: 180
+                Layout.fillHeight: true
+                color: themeManager.background
                 
-                Label {
-                    text: t("General")
-                    color: themeManager.textPrimary
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
+                ListView {
+                    id: settingsNav
+                    anchors.fill: parent
+                    anchors.topMargin: 10
+                    spacing: 2
+                    model: [
+                        { name: t("General"), icon: "⚙️" },
+                        { name: t("Appearance"), icon: "🎨" },
+                        { name: t("Library"), icon: "📚" },
+                        { name: t("Import Options"), icon: "📥" },
+                        { name: t("OpenAI API"), icon: "🧠" }
+                    ]
+                    
+                    delegate: Rectangle {
+                        width: settingsNav.width
+                        height: 40
+                        color: ListView.isCurrentItem ? themeManager.surface : "transparent"
+                        
+                        Rectangle {
+                            width: 3
+                            height: 24
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: themeManager.primary
+                            visible: ListView.isCurrentItem
+                            radius: 1.5
+                        }
+                        
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 15
+                            spacing: 10
+                            
+                            Text {
+                                text: modelData.icon
+                                font.pixelSize: 16
+                            }
+                            
+                            Text {
+                                text: modelData.name
+                                color: ListView.isCurrentItem ? themeManager.primary : themeManager.textPrimary
+                                font.pixelSize: 14
+                                font.weight: ListView.isCurrentItem ? Font.DemiBold : Font.Normal
+                            }
+                            
+                            Item { Layout.fillWidth: true }
+                        }
+                        
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: settingsNav.currentIndex = index
+                        }
+                    }
                 }
                 
                 Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: generalContent.height + 24
-                    color: themeManager.background
-                    radius: 8
-                    border.color: themeManager.border
+                    anchors.right: parent.right
+                    width: 1
+                    height: parent.height
+                    color: themeManager.border
+                }
+            }
+            
+            // Content Area
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: "transparent"
+                clip: true
+                
+                StackLayout {
+                    id: settingsStack
+                    anchors.fill: parent
+                    anchors.margins: 24
+                    currentIndex: settingsNav.currentIndex
                     
+                    // 0. General
                     ColumnLayout {
-                        id: generalContent
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 12
-                        spacing: 12
+                        spacing: 20
+                        
+                        Label {
+                            text: t("General")
+                            color: themeManager.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                        }
                         
                         CheckBox {
                             id: startMinCheck
@@ -488,49 +571,34 @@ ApplicationWindow {
                             text: t("Start with Windows")
                             checked: libraryConfig.startWithWindows
                         }
-                    }
-                }
-            }
-            
-            // Appearance Section
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                
-                Label {
-                    text: t("Appearance")
-                    color: themeManager.textPrimary
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                }
-                
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: appearanceContent.height + 24
-                    color: themeManager.background
-                    radius: 8
-                    border.color: themeManager.border
-                    
-                    ColumnLayout {
-                        id: appearanceContent
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 12
-                        spacing: 12
                         
-                        RowLayout {
-                            Layout.fillWidth: true
+                        Item { Layout.fillHeight: true }
+                    }
+                    
+                    // 1. Appearance
+                    ColumnLayout {
+                        spacing: 20
+                        
+                        Label {
+                            text: t("Appearance")
+                            color: themeManager.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                        }
+                        
+                        GridLayout {
+                            columns: 2
+                            rowSpacing: 16
+                            columnSpacing: 16
                             
                             Label { 
                                 text: t("Theme:")
                                 color: themeManager.textSecondary
-                                Layout.preferredWidth: 80
                             }
                             
                             ComboBox {
                                 id: themeCombo
-                                Layout.fillWidth: true
+                                Layout.preferredWidth: 200
                                 model: [t("Light"), t("Dark"), t("System")]
                                 currentIndex: themeManager.themeMode
                                 
@@ -540,20 +608,15 @@ ApplicationWindow {
                                 
                                 onModelChanged: currentIndex = themeManager.themeMode
                             }
-                        }
-                        
-                        RowLayout {
-                            Layout.fillWidth: true
                             
                             Label { 
                                 text: t("Language:")
                                 color: themeManager.textSecondary
-                                Layout.preferredWidth: 80
                             }
                             
                             ComboBox {
                                 id: languageCombo
-                                Layout.fillWidth: true
+                                Layout.preferredWidth: 200
                                 model: [t("System"), t("English"), t("Chinese")]
                                 currentIndex: languageManager.languageMode
                                 
@@ -564,119 +627,72 @@ ApplicationWindow {
                                 onModelChanged: currentIndex = languageManager.languageMode
                             }
                         }
+                        
+                        Item { Layout.fillHeight: true }
                     }
-                }
-            }
-            
-            // Library Section
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                
-                Label {
-                    text: t("Library")
-                    color: themeManager.textPrimary
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                }
-                
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: libraryContent.height + 24
-                    color: themeManager.background
-                    radius: 8
-                    border.color: themeManager.border
                     
-                    RowLayout {
-                        id: libraryContent
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 12
-                        spacing: 8
+                    // 2. Library
+                    ColumnLayout {
+                        spacing: 20
+                        
+                        Label {
+                            text: t("Library")
+                            color: themeManager.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                        }
                         
                         Label { 
                             text: t("Library Path:")
                             color: themeManager.textSecondary
                         }
                         
-                        TextField {
-                            id: libraryPathField
+                        RowLayout {
                             Layout.fillWidth: true
-                            text: libraryConfig.libraryPath
-                            color: themeManager.textPrimary
+                            spacing: 8
                             
-                            background: Rectangle {
-                                color: themeManager.surface
-                                radius: 6
-                                border.color: themeManager.border
+                            TextField {
+                                id: libraryPathField
+                                Layout.fillWidth: true
+                                text: libraryConfig.libraryPath
+                                color: themeManager.textPrimary
+                                
+                                background: Rectangle {
+                                    color: themeManager.background
+                                    radius: 6
+                                    border.color: themeManager.border
+                                }
                             }
-                        }
-                        
-                        Rectangle {
-                            width: 36
-                            height: 36
-                            radius: 8
-                            color: browseMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
-                            border.color: themeManager.border
                             
-                            Text {
-                                anchors.centerIn: parent
+                            Button {
                                 text: "..."
-                                color: themeManager.textSecondary
-                            }
-                            
-                            MouseArea {
-                                id: browseMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
                                 onClicked: libraryFolderDialog.open()
                             }
                         }
+                        
+                        Item { Layout.fillHeight: true }
                     }
-                }
-            }
-            
-            // Import Section
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                
-                Label {
-                    text: t("Import Options")
-                    color: themeManager.textPrimary
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                }
-                
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: importContent.height + 24
-                    color: themeManager.background
-                    radius: 8
-                    border.color: themeManager.border
                     
+                    // 3. Import Options
                     ColumnLayout {
-                        id: importContent
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 12
-                        spacing: 12
+                        spacing: 20
+                        
+                        Label {
+                            text: t("Import Options")
+                            color: themeManager.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                        }
                         
                         RowLayout {
-                            Layout.fillWidth: true
-                            
                             Label { 
                                 text: t("Default Drop Action:")
                                 color: themeManager.textSecondary
-                                Layout.preferredWidth: 120
                             }
                             
                             ComboBox {
                                 id: importActionCombo
-                                Layout.fillWidth: true
+                                Layout.preferredWidth: 200
                                 model: [t("Move to Library"), t("Link to Original")]
                                 currentIndex: libraryConfig.defaultImportMode
                                 
@@ -687,79 +703,49 @@ ApplicationWindow {
                                 onModelChanged: currentIndex = libraryConfig.defaultImportMode
                             }
                         }
-                    }
-                }
-            }
-            
-            // OpenAI API Section
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                
-                Label {
-                    text: t("OpenAI API")
-                    color: themeManager.textPrimary
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                }
-                
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: apiContent.height + 24
-                    color: themeManager.background
-                    radius: 8
-                    border.color: themeManager.border
-                    
-                    ColumnLayout {
-                        id: apiContent
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 12
-                        spacing: 10
                         
-                        RowLayout {
+                        Item { Layout.fillHeight: true }
+                    }
+                    
+                    // 4. OpenAI API
+                    ColumnLayout {
+                        spacing: 16
+                        
+                        Label {
+                            text: t("OpenAI API")
+                            color: themeManager.textPrimary
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                        }
+                        
+                        GridLayout {
+                            columns: 2
+                            columnSpacing: 12
+                            rowSpacing: 12
                             Layout.fillWidth: true
                             
                             Label { 
                                 text: t("Base URL:")
                                 color: themeManager.textSecondary
-                                Layout.preferredWidth: 80
                             }
-                            TextField {
-                                id: apiBaseUrlField
+                            RowLayout {
                                 Layout.fillWidth: true
-                                text: libraryConfig.apiBaseUrl
-                                placeholderText: "https://api.openai.com/v1"
-                                color: themeManager.textPrimary
-                                placeholderTextColor: themeManager.textMuted
-                                
-                                background: Rectangle {
-                                    color: themeManager.surface
-                                    radius: 6
-                                    border.color: apiBaseUrlField.activeFocus ? themeManager.primary : themeManager.border
+                                TextField {
+                                    id: apiBaseUrlField
+                                    Layout.fillWidth: true
+                                    text: libraryConfig.apiBaseUrl
+                                    placeholderText: "https://api.openai.com/v1"
+                                    color: themeManager.textPrimary
+                                    placeholderTextColor: themeManager.textMuted
+                                    
+                                    background: Rectangle {
+                                        color: themeManager.background
+                                        radius: 6
+                                        border.color: apiBaseUrlField.activeFocus ? themeManager.primary : themeManager.border
+                                    }
                                 }
-                            }
-                            
-                            // Refresh button to fetch models
-                            Rectangle {
-                                Layout.preferredWidth: 36
-                                Layout.preferredHeight: 36
-                                radius: 8
-                                color: refreshModelsMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
-                                border.color: themeManager.border
-                                
-                                Text {
-                                    anchors.centerIn: parent
+                                Button {
                                     text: modelsFetching ? "⏳" : "🔄"
-                                    font.pixelSize: 16
-                                }
-                                
-                                MouseArea {
-                                    id: refreshModelsMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
                                     enabled: !modelsFetching
                                     onClicked: {
                                         modelsFetching = true
@@ -767,15 +753,10 @@ ApplicationWindow {
                                     }
                                 }
                             }
-                        }
-                        
-                        RowLayout {
-                            Layout.fillWidth: true
                             
                             Label { 
                                 text: t("API Key:")
                                 color: themeManager.textSecondary
-                                Layout.preferredWidth: 80
                             }
                             TextField {
                                 id: apiKeyField
@@ -787,26 +768,19 @@ ApplicationWindow {
                                 placeholderTextColor: themeManager.textMuted
                                 
                                 background: Rectangle {
-                                    color: themeManager.surface
+                                    color: themeManager.background
                                     radius: 6
                                     border.color: apiKeyField.activeFocus ? themeManager.primary : themeManager.border
                                 }
                             }
-                        }
-                        
-                        RowLayout {
-                            Layout.fillWidth: true
                             
                             Label { 
                                 text: t("Model:")
                                 color: themeManager.textSecondary
-                                Layout.preferredWidth: 80
                             }
-                            
                             ComboBox {
                                 id: modelCombo
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 36
                                 editable: true
                                 model: modelsList
                                 
@@ -817,73 +791,63 @@ ApplicationWindow {
                                 onActivated: function(index) {
                                     editText = modelsList[index]
                                 }
-                                
-                                popup: Popup {
-                                    y: modelCombo.height
-                                    width: modelCombo.width
-                                    implicitHeight: Math.min(contentItem.implicitHeight + 2, 300)
-                                    padding: 1
-                                    
-                                    contentItem: ListView {
-                                        clip: true
-                                        implicitHeight: contentHeight
-                                        model: modelCombo.popup.visible ? modelCombo.delegateModel : null
-                                        currentIndex: modelCombo.highlightedIndex
-                                        
-                                        ScrollIndicator.vertical: ScrollIndicator { }
-                                    }
-                                    
-                                    background: Rectangle {
-                                        color: themeManager.surface
-                                        border.color: themeManager.border
-                                        radius: 4
-                                    }
-                                }
-                                
-                                delegate: ItemDelegate {
-                                    width: modelCombo.width
-                                    
-                                    contentItem: Text {
-                                        text: modelData
-                                        color: themeManager.textPrimary
-                                        font: modelCombo.font
-                                        elide: Text.ElideRight
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    
-                                    highlighted: modelCombo.highlightedIndex === index
-                                    
-                                    background: Rectangle {
-                                        color: highlighted ? themeManager.primary : "transparent"
-                                        opacity: highlighted ? 0.2 : 1
-                                    }
-                                }
                             }
                         }
                         
-                        RowLayout {
+                        CheckBox {
+                            id: autoTagCheck
+                            text: t("Auto Tag with AI")
+                            checked: libraryConfig.autoAiTag
+                        }
+                        
+                        Label { 
+                            text: t("System Prompt:")
+                            color: themeManager.textSecondary
+                        }
+                        
+                        ScrollView {
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             
-                            CheckBox {
-                                id: autoTagCheck
-                                text: t("Auto Tag with AI")
-                                checked: libraryConfig.autoAiTag
+                            TextArea {
+                                id: systemPromptField
+                                text: libraryConfig.systemPrompt
+                                color: themeManager.textPrimary
+                                wrapMode: Text.Wrap
+                                font.family: "Consolas"
+                                
+                                background: Rectangle {
+                                    color: themeManager.background
+                                    radius: 6
+                                    border.color: systemPromptField.activeFocus ? themeManager.primary : themeManager.border
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+        
+        footer: Rectangle {
+            width: parent.width
+            height: 60
+            color: "transparent"
             
-            Item { Layout.fillHeight: true }
+            Rectangle {
+                width: parent.width
+                height: 1
+                anchors.top: parent.top
+                color: themeManager.border
+            }
             
-            // Custom footer buttons
             RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 10
+                anchors.fill: parent
+                anchors.margins: 12
                 spacing: 12
                 
                 Item { Layout.fillWidth: true }
                 
+                // Cancel Button
                 Rectangle {
                     Layout.preferredWidth: 80
                     Layout.preferredHeight: 36
@@ -906,6 +870,7 @@ ApplicationWindow {
                     }
                 }
                 
+                // OK Button
                 Rectangle {
                     Layout.preferredWidth: 80
                     Layout.preferredHeight: 36
@@ -925,11 +890,11 @@ ApplicationWindow {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             libraryConfig.libraryPath = libraryPathField.text
-                            // Update both libraryConfig and llmClient
                             llmClient.baseUrl = apiBaseUrlField.text
                             llmClient.apiKey = apiKeyField.text
                             llmClient.model = modelCombo.editText
                             libraryConfig.autoAiTag = autoTagCheck.checked
+                            libraryConfig.systemPrompt = systemPromptField.text
                             libraryConfig.startMinimized = startMinCheck.checked
                             libraryConfig.startWithWindows = startWinCheck.checked
                             settingsDialog.accept()
@@ -937,14 +902,6 @@ ApplicationWindow {
                         }
                     }
                 }
-            }
-        }
-        
-        FolderDialog {
-            id: libraryFolderDialog
-            title: t("Select Library Folder")
-            onAccepted: {
-                libraryPathField.text = selectedFolder.toString().replace("file:///", "")
             }
         }
     }

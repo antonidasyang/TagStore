@@ -91,10 +91,10 @@ windeployqt.exe --qmldir ..\qml .\TagStore.exe
 ### 🤖 LLM Setup (For Auto-Tagging)
 TagStore works with any OpenAI-compatible provider.
 1. Go to **Settings** (⚙️).
-2. Enter your **API Key** and **Base URL**.
-   - *OpenAI*: `https://api.openai.com/v1`
-   - *LocalAI/Ollama*: `http://localhost:8080/v1`
-3. Select your model (e.g., `gpt-4o`, `llama3`).
+   - **API Key**: Your provider's secret key.
+   - **Model**: `gpt-4o`, `qwen2.5`, `llama3` etc.
+3. **Custom Prompt**: You can now edit the System Prompt to customize how the AI analyzes your files (e.g., "Always use snake_case tags").
+4. Check **"Auto Tag with AI"** to enable automatic processing.
 
 ### 🖱️ Drag & Drop Behavior
 Customize how you want to import files by default in **Settings > Import Options**:

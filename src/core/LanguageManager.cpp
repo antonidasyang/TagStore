@@ -164,6 +164,7 @@ void LanguageManager::initTranslations()
     zh["Base URL:"] = "基础 URL:";
     zh["API Key:"] = "API 密钥:";
     zh["Model:"] = "模型:";
+    zh["System Prompt:"] = "系统提示词:";
     zh["Auto Tag with AI"] = "自动使用 AI 打标签";
     
     // Drop
@@ -267,7 +268,7 @@ void LanguageManager::initTranslations()
     zh["Start with Windows"] = "开机自启动";
 
     // Balloon
-    zh["Drop files or folders here"] = "拖放文件和文件夹";
+    zh["Drag files and folders here"] = "拖放文件和文件夹到这里";
     
     m_translations["zh_CN"] = zh;
 }

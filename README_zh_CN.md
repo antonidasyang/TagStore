@@ -91,7 +91,8 @@ windeployqt.exe --qmldir ..\qml .\TagStore.exe
    - **API Base URL**: `https://api.openai.com/v1` (或任何兼容 OpenAI 格式的中转/本地地址)
    - **API Key**: 您的密钥
    - **Model**: `gpt-4o`, `qwen2.5`, `llama3` 等
-3. 勾选"自动使用 AI 打标签"。
+3. **自定义提示词**：您可以修改系统提示词 (System Prompt)，让 AI 按照您的偏好生成标签（例如："总是使用蛇形命名法"）。
+4. 勾选"自动使用 AI 打标签"。
 
 ### 🖱️ 交互习惯
 在**设置 > 导入选项**中，您可以自定义默认的拖拽行为：

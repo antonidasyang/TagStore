@@ -1,5 +1,15 @@
 # TagStore Changelog
 
+## [1.0.0.2] - 2026-01-22
+### Added
+- Release version 1.0.0.2.
+- **Redesigned Settings**: Implemented a modern, two-column layout for the Settings dialog with categorized navigation.
+- **Custom AI Prompt**: Added the ability to customize the System Prompt used for AI tagging, allowing users to fine-tune tag generation rules.
+
+### Changed
+- **UI Polish**: Unified button styles across all dialogs to match the application theme.
+- **Drop Balloon**: Improved tooltip positioning to follow the mouse cursor without clipping, ensuring hints are always visible.
+
 ## [1.0.0.1] - 2026-01-22
 ### Added
 - Release version 1.0.0.1.
