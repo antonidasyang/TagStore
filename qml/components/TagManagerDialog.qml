@@ -196,7 +196,7 @@ Dialog {
                 Text {
                     anchors.centerIn: parent
                     text: t("Delete")
-                    color: isEnabled ? "white" : themeManager.textMuted
+                    color: deleteBtn.isEnabled ? "white" : themeManager.textMuted
                     font.pixelSize: 13
                 }
                 
@@ -224,7 +224,7 @@ Dialog {
                 Text {
                     anchors.centerIn: parent
                     text: t("Rename")
-                    color: isEnabled ? themeManager.textPrimary : themeManager.textMuted
+                    color: renameBtnAction.isEnabled ? themeManager.textPrimary : themeManager.textMuted
                     font.pixelSize: 13
                 }
                 
@@ -257,7 +257,7 @@ Dialog {
                 Text {
                     anchors.centerIn: parent
                     text: t("Merge")
-                    color: isEnabled ? themeManager.textPrimary : themeManager.textMuted
+                    color: mergeBtnAction.isEnabled ? themeManager.textPrimary : themeManager.textMuted
                     font.pixelSize: 13
                 }
                 

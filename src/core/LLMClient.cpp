@@ -101,11 +101,13 @@ bool LLMClient::isProcessing() const
 
 bool LLMClient::isConfigured() const
 {
-    return !m_apiKey.isEmpty() && !m_baseUrl.isEmpty() && !m_model.isEmpty();
+    // API Key can be empty for local LLMs (e.g. Ollama)
+    return !m_baseUrl.isEmpty() && !m_model.isEmpty();
 }
 
-void LLMClient::generateTags(const QString &documentText, int fileId)
+void LLMClient::generateTags(const QString &documentText, int fileId, const QStringList &existingTags)
 {
+    qDebug() << "Entering generateTags for file" << fileId;
     if (m_isProcessing) {
         emit errorOccurred(fileId, "Another request is in progress");
         return;
@@ -130,7 +132,9 @@ void LLMClient::generateTags(const QString &documentText, int fileId)
     QNetworkRequest request(url);
     
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+    if (!m_apiKey.isEmpty()) {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
+    }
     
     // Build the JSON payload
     QJsonObject payload;
@@ -153,10 +157,22 @@ void LLMClient::generateTags(const QString &documentText, int fileId)
     
     QJsonObject userMessage;
     userMessage["role"] = "user";
+    
     // Truncate very long documents to avoid token limits
     QString truncatedText = documentText.left(8000);
-    userMessage["content"] = QString("Extract tags from this document:\n\n%1").arg(truncatedText);
+    
+    QString promptContent = QString("Extract tags from this document:\n\n%1").arg(truncatedText);
+    
+    if (!existingTags.isEmpty()) {
+        promptContent += QString("\n\nExisting tags in library (PREFER these if applicable):\n%1").arg(existingTags.join(", "));
+    }
+    
+    userMessage["content"] = promptContent;
     messages.append(userMessage);
+    
+    // DEBUG: Print prompt
+    qDebug() << "--- SYSTEM PROMPT ---\n" << systemMessage["content"].toString();
+    qDebug() << "--- USER PROMPT ---\n" << promptContent;
     
     payload["messages"] = messages;
     
@@ -164,6 +180,9 @@ void LLMClient::generateTags(const QString &documentText, int fileId)
     QByteArray data = doc.toJson(QJsonDocument::Compact);
     
     qDebug() << "Sending request to:" << url.toString();
+    qDebug() << "Payload:" << data;
+    
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     m_currentReply = m_networkManager->post(request, data);
     connect(m_currentReply, &QNetworkReply::finished, this, [this]() {
         onReplyFinished(m_currentReply);
@@ -282,6 +301,9 @@ void LLMClient::onReplyFinished(QNetworkReply *reply)
     m_currentFileId = -1;
     m_currentReply = nullptr;
     
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    qDebug() << "HTTP Status:" << statusCode;
+    
     if (reply->error() != QNetworkReply::NoError) {
         QString errorMsg = reply->errorString();
         
@@ -304,6 +326,8 @@ void LLMClient::onReplyFinished(QNetworkReply *reply)
     }
     
     QByteArray responseData = reply->readAll();
+    qDebug() << "Raw Response:" << responseData;
+    
     QStringList tags = parseTagsFromResponse(responseData);
     
     if (tags.isEmpty()) {

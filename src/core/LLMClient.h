@@ -38,7 +38,7 @@ public:
     bool isProcessing() const;
     
     // API calls
-    Q_INVOKABLE void generateTags(const QString &documentText, int fileId = -1);
+    Q_INVOKABLE void generateTags(const QString &documentText, int fileId, const QStringList &existingTags);
     Q_INVOKABLE void fetchModels(const QString &baseUrl, const QString &apiKey);
     Q_INVOKABLE void cancelRequest();
     Q_INVOKABLE bool isConfigured() const;

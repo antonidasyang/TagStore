@@ -1,5 +1,12 @@
 # TagStore Changelog
 
+## [1.0.0.3] - 2026-01-22
+### Fixed
+- **Critical AI Fix**: Resolved "Parameter count mismatch" error in AI tagging queue by enforcing schema consistency.
+- **Manual Tagging**: Fixed layout issues where the tag list didn't fill the dialog or wrapped incorrectly.
+- **Renaming**: Added detailed error feedback for rename failures (e.g., "Access Denied") and fixed case-only rename logic.
+- **Tag Cache**: Optimized performance by caching tags in memory, reducing database I/O.
+
 ## [1.0.0.2] - 2026-01-22
 ### Added
 - Release version 1.0.0.2.

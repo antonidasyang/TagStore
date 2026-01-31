@@ -90,6 +90,8 @@ public:
     bool startWithWindows() const;
     Q_INVOKABLE void setStartWithWindows(bool enable);
     
+    Q_INVOKABLE void showInExplorer(const QString &filePath);
+    
 signals:
     void libraryPathChanged();
     void apiBaseUrlChanged();

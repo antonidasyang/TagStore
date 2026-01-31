@@ -18,6 +18,11 @@ ApplicationWindow {
     title: t("TagStore") + " v" + Qt.application.version
     
     Component.onCompleted: {
+        // Sync LLM client from persisted config so AI tagging works after restart
+        llmClient.baseUrl = libraryConfig.apiBaseUrl
+        llmClient.apiKey = libraryConfig.apiKey
+        llmClient.model = libraryConfig.model
+        llmProcessor.processNow()
         if (!libraryConfig.startMinimized) {
             window.visibility = libraryConfig.windowMaximized ? Window.Maximized : Window.Windowed
             window.visible = true
@@ -26,6 +31,7 @@ ApplicationWindow {
     
     property bool forceQuit: false
     property bool isQuitting: false
+    property var clipboardTags: [] // Store tags for copy/paste
     
     onClosing: function(close) {
         if (isQuitting) {
@@ -51,7 +57,7 @@ ApplicationWindow {
         }
     }
     
-    onVisibilityChanged: {
+    onVisibilityChanged: function(visibility) {
         if (visibility === Window.Minimized) {
             window.hide()
             dropBalloon.show()
@@ -59,9 +65,16 @@ ApplicationWindow {
     }
     
     Platform.SystemTrayIcon {
+        id: trayIcon
         visible: true
         icon.source: "qrc:/icons/icon.png"
         tooltip: t("TagStore")
+        
+        Component.onCompleted: {
+            if (libraryConfig.startMinimized) {
+                trayIcon.showMessage(t("TagStore"), t("TagStore is running in the background"), Platform.SystemTrayIcon.Information, 3000)
+            }
+        }
         
         onActivated: function(reason) {
             if (reason === Platform.SystemTrayIcon.Trigger) {
@@ -240,11 +253,20 @@ ApplicationWindow {
         MenuItem {
             text: t("Reveal in Explorer")
             onTriggered: {
-                var folder = contextMenu.currentFilePath.substring(0, contextMenu.currentFilePath.lastIndexOf('/'))
-                Qt.openUrlExternally("file:///" + folder)
+                libraryConfig.showInExplorer(contextMenu.currentFilePath)
             }
         }
         
+        MenuItem {
+            text: t("Rename")
+            onTriggered: {
+                var fileName = contextMenu.currentFilePath.substring(contextMenu.currentFilePath.lastIndexOf('/') + 1)
+                renameFileDialog.fileId = contextMenu.currentFileId
+                renameFileDialog.oldName = fileName
+                renameFileDialog.open()
+            }
+        }
+
         MenuSeparator {}
         
         MenuItem {
@@ -252,6 +274,27 @@ ApplicationWindow {
             onTriggered: {
                 batchManualTagDialog.fileIds = resultsGrid.selectedFileIds
                 batchManualTagDialog.open()
+            }
+        }
+
+        MenuItem {
+            text: t("Copy Tags")
+            onTriggered: {
+                clipboardTags = databaseManager.getTagsForFile(contextMenu.currentFileId)
+                console.log("Copied tags:", clipboardTags)
+            }
+        }
+        
+        MenuItem {
+            text: t("Paste Tags")
+            enabled: clipboardTags.length > 0
+            onTriggered: {
+                // Apply to ALL selected files
+                var ids = resultsGrid.selectedFileIds
+                for (var i = 0; i < ids.length; i++) {
+                    databaseManager.addTagsToFile(ids[i], clipboardTags)
+                }
+                console.log("Pasted tags to", ids.length, "files")
             }
         }
         
@@ -274,6 +317,149 @@ ApplicationWindow {
                     deleteConfirmDialog.isReferenced = false
                 }
                 deleteConfirmDialog.open()
+            }
+        }
+    }
+    
+    // Rename File Dialog
+    Dialog {
+        id: renameFileDialog
+        property int fileId: -1
+        property string oldName: ""
+        
+        modal: true
+        closePolicy: Popup.CloseOnEscape
+        anchors.centerIn: parent
+        width: 400
+        padding: 24
+        bottomPadding: 24
+        
+        Shortcut {
+            sequence: "Esc"
+            enabled: renameFileDialog.visible
+            onActivated: renameFileDialog.close()
+        }
+        
+        onOpened: {
+            renameFileField.text = oldName
+            renameFileField.forceActiveFocus()
+            // Select name part without extension
+            var dotIndex = oldName.lastIndexOf('.')
+            if (dotIndex > 0) {
+                renameFileField.select(0, dotIndex)
+            } else {
+                renameFileField.selectAll()
+            }
+        }
+        
+        background: Rectangle {
+            color: themeManager.surface
+            radius: 12
+            border.color: themeManager.border
+        }
+        
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 20
+            
+            Text {
+                text: t("Rename File")
+                color: themeManager.textPrimary
+                font.pixelSize: 18
+                font.weight: Font.Bold
+            }
+            
+            TextField {
+                id: renameFileField
+                Layout.fillWidth: true
+                text: renameFileDialog.oldName
+                color: themeManager.textPrimary
+                
+                background: Rectangle {
+                    color: themeManager.background
+                    radius: 6
+                    border.color: renameFileField.activeFocus ? themeManager.primary : themeManager.border
+                }
+                
+                onAccepted: renameFileDialog.doRenameFile()
+            }
+            
+            Text {
+                id: renameErrorText
+                text: t("Rename failed. Check if file is in use.")
+                color: "#ef4444"
+                visible: false
+                font.pixelSize: 12
+            }
+            
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                
+                Item { Layout.fillWidth: true }
+                
+                Rectangle {
+                    Layout.preferredWidth: 80
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: cancelRenameFileMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
+                    border.color: themeManager.border
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Cancel")
+                        color: themeManager.textSecondary
+                    }
+                    
+                    MouseArea {
+                        id: cancelRenameFileMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: renameFileDialog.close()
+                    }
+                }
+                
+                Rectangle {
+                    Layout.preferredWidth: 80
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: okRenameFileMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Rename")
+                        color: "white"
+                    }
+                    
+                    MouseArea {
+                        id: okRenameFileMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: renameFileDialog.doRenameFile()
+                    }
+                }
+            }
+        }
+        
+        function doRenameFile() {
+            var newName = renameFileField.text.trim()
+            console.log("Renaming fileId:", renameFileDialog.fileId, "from:", renameFileDialog.oldName, "to:", newName)
+            
+            if (newName.length > 0 && newName !== renameFileDialog.oldName) {
+                if (databaseManager.renameFile(renameFileDialog.fileId, newName)) {
+                    console.log("Rename success")
+                    renameFileDialog.close()
+                    renameErrorText.visible = false
+                } else {
+                    console.log("Rename failed")
+                    renameErrorText.visible = true
+                }
+            } else {
+                console.log("Rename skipped (no change)")
+                renameFileDialog.close()
+                renameErrorText.visible = false
             }
         }
     }
@@ -482,7 +668,7 @@ ApplicationWindow {
                         { name: t("Appearance"), icon: "🎨" },
                         { name: t("Library"), icon: "📚" },
                         { name: t("Import Options"), icon: "📥" },
-                        { name: t("OpenAI API"), icon: "🧠" }
+                        { name: t("LLM API"), icon: "🧠" }
                     ]
                     
                     delegate: Rectangle {
@@ -664,9 +850,26 @@ ApplicationWindow {
                                 }
                             }
                             
-                            Button {
-                                text: "..."
-                                onClicked: libraryFolderDialog.open()
+                            Rectangle {
+                                width: 36
+                                height: 36
+                                radius: 8
+                                color: browseMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
+                                border.color: themeManager.border
+                                
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "..."
+                                    color: themeManager.textSecondary
+                                }
+                                
+                                MouseArea {
+                                    id: browseMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: libraryFolderDialog.open()
+                                }
                             }
                         }
                         
@@ -898,11 +1101,22 @@ ApplicationWindow {
                             libraryConfig.startMinimized = startMinCheck.checked
                             libraryConfig.startWithWindows = startWinCheck.checked
                             settingsDialog.accept()
+                            if (llmClient.isConfigured()) {
+                                llmProcessor.processNow()
+                            }
                             console.log("Settings saved. LLM configured:", llmClient.isConfigured())
                         }
                     }
                 }
             }
+        }
+    }
+    
+    FolderDialog {
+        id: libraryFolderDialog
+        title: t("Select Library Folder")
+        onAccepted: {
+            libraryPathField.text = selectedFolder.toString().replace("file:///", "")
         }
     }
     
@@ -1018,6 +1232,17 @@ ApplicationWindow {
     }
     
     Connections {
+        target: databaseManager
+        function onDatabaseError(msg) {
+            console.log("Database Error:", msg)
+            if (renameFileDialog.visible) {
+                renameErrorText.text = msg
+                renameErrorText.visible = true
+            }
+        }
+    }
+
+    Connections {
         target: fileIngestor
         
         function onConflictDetected(jobId, newFilename, existingPath, hash) {
@@ -1067,6 +1292,22 @@ ApplicationWindow {
         function onModelsFetchError(errorMsg) {
             modelsFetching = false
             console.log("Failed to fetch models:", errorMsg)
+        }
+    }
+    
+    Connections {
+        target: llmProcessor
+        
+        function onProcessingComplete(fileId, tags) {
+            console.log("AI Tagging Complete for file", fileId)
+            // Optional: Notification for single file? Too spammy for batch.
+            // Maybe just log or update UI count? 
+            // LibraryModel updates automatically via Database signals.
+        }
+        
+        function onProcessingError(fileId, error) {
+            console.warn("AI Tagging Error:", error)
+            trayIcon.showMessage(t("AI Tagging Failed"), error, Platform.SystemTrayIcon.Warning, 3000)
         }
     }
     
@@ -1245,7 +1486,6 @@ ApplicationWindow {
         }
     }
     
-    // Batch Manual Tag dialog
     Dialog {
         id: batchManualTagDialog
         property var fileIds: []
@@ -1255,6 +1495,7 @@ ApplicationWindow {
         closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
         width: 400
+        height: 550 // Fixed height to provide consistent layout
         padding: 24
         bottomPadding: 24
         
@@ -1404,44 +1645,68 @@ ApplicationWindow {
                 font.pixelSize: 12
             }
             
-            Flow {
+            Rectangle {
                 Layout.fillWidth: true
-                spacing: 6
+                Layout.fillHeight: true
+                color: themeManager.background
+                radius: 8
+                border.color: themeManager.border
                 
-                Repeater {
-                    model: databaseManager ? databaseManager.getAllTags() : []
+                ScrollView {
+                    id: tagScrollView
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     
-                    Rectangle {
-                        width: batchSuggestText.width + 12
-                        height: 24
-                        radius: 4
-                        color: batchSuggestMouse.containsMouse ? themeManager.primaryLight : themeManager.surface
-                        border.color: themeManager.border
-                        
-                        Text {
-                            id: batchSuggestText
-                            anchors.centerIn: parent
-                            text: modelData.name
-                            color: themeManager.textSecondary
-                            font.pixelSize: 11
-                        }
-                        
-                        MouseArea {
-                            id: batchSuggestMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                var current = batchTagField.text
-                                if (current.length > 0 && !current.endsWith(",")) {
-                                    current += ", "
+                    Flow {
+                        width: tagScrollView.availableWidth
+                        spacing: 6
+                                        
+                                        Repeater {
+                                            // Filter out empty tags (count 0) to keep suggestions relevant
+                                            model: {
+                                                var tags = databaseManager ? databaseManager.getAllTags() : []
+                                                var validTags = []
+                                                for (var i = 0; i < tags.length; i++) {
+                                                    if (tags[i].count > 0) validTags.push(tags[i])
+                                                }
+                                                return validTags
+                                            }
+                                            
+                                            Rectangle {
+                                                width: batchSuggestText.width + 12
+                                                height: 24
+                            radius: 4
+                            color: batchSuggestMouse.containsMouse ? themeManager.primaryLight : themeManager.surface
+                            border.color: themeManager.border
+                            
+                            Text {
+                                id: batchSuggestText
+                                anchors.centerIn: parent
+                                text: modelData.name
+                                color: themeManager.textSecondary
+                                font.pixelSize: 11
+                            }
+                            
+                            MouseArea {
+                                id: batchSuggestMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var current = batchTagField.text
+                                    if (current.length > 0 && !current.endsWith(",")) {
+                                        current += ", "
+                                    }
+                                    batchTagField.text = current + modelData.name
                                 }
-                                batchTagField.text = current + modelData.name
                             }
                         }
                     }
                 }
             }
+        }
         }
         
         footer: Item {
@@ -1530,7 +1795,8 @@ ApplicationWindow {
     }
     
     function applyBatchTags(fileIds, tagsText) {
-        var tags = tagsText.split(",").map(function(t) { return t.trim() }).filter(function(t) { return t.length > 0 })
+        // Split by both English comma (,) and Chinese full-width comma (，)
+        var tags = tagsText.split(/[，,]/).map(function(t) { return t.trim() }).filter(function(t) { return t.length > 0 })
         
         for (var i = 0; i < fileIds.length; i++) {
             databaseManager.addTagsToFile(fileIds[i], tags)

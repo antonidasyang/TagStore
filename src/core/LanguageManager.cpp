@@ -134,10 +134,13 @@ void LanguageManager::initTranslations()
     zh["Manage Tags"] = "管理标签";
     zh["Delete"] = "删除";
     zh["Remove"] = "从库中移除";
+    zh["Copy Tags"] = "复制标签";
+    zh["Paste Tags"] = "粘贴标签";
     
     // Tag dialog
     zh["Tags for this file:"] = "此文件的标签:";
     zh["Add new tag..."] = "添加新标签...";
+    zh["Rename File"] = "重命名文件";
     
     // Delete dialog
     zh["Delete File"] = "删除文件";
@@ -160,7 +163,7 @@ void LanguageManager::initTranslations()
     zh["Library"] = "库";
     zh["Library Path:"] = "库路径:";
     zh["Select Library Folder"] = "选择库文件夹";
-    zh["OpenAI API"] = "OpenAI API";
+    zh["LLM API"] = "大模型API";
     zh["Base URL:"] = "基础 URL:";
     zh["API Key:"] = "API 密钥:";
     zh["Model:"] = "模型:";
@@ -269,6 +272,7 @@ void LanguageManager::initTranslations()
 
     // Balloon
     zh["Drag files and folders here"] = "拖放文件和文件夹到这里";
+    zh["TagStore is running in the background"] = "TagStore 正在后台运行";
     
     m_translations["zh_CN"] = zh;
 }

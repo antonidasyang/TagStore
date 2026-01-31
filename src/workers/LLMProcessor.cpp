@@ -91,6 +91,8 @@ void LLMProcessor::processNow()
 
 void LLMProcessor::pollQueue()
 {
+    qDebug() << "Poll Queue: Running:" << m_isRunning << "Busy:" << isBusy() << "Configured:" << m_llmClient->isConfigured();
+
     if (!m_isRunning || isBusy()) {
         return;
     }
@@ -143,6 +145,7 @@ void LLMProcessor::processItem(int queueId, int fileId)
 
 void LLMProcessor::onExtractionFinished(int fileId, const QString &text)
 {
+    qDebug() << "Entering onExtractionFinished for file" << fileId << "Text length:" << text.length();
     if (fileId != m_currentFileId) return;
     
     m_isExtracting = false;
@@ -155,7 +158,17 @@ void LLMProcessor::onExtractionFinished(int fileId, const QString &text)
              FileDTO file = DatabaseManager::instance().getFileById(fileId);
              finalText = QString("Filename: %1").arg(file.filename);
         }
-        m_llmClient->generateTags(finalText, fileId);
+        
+        // Get top 100 existing tags to guide the AI
+        QStringList existingTags;
+        QVariantList tags = DatabaseManager::instance().getAllTags();
+        int tagLimit = qMin(tags.size(), 100);
+        for (int i = 0; i < tagLimit; ++i) {
+            existingTags.append(tags.at(i).toMap()["name"].toString());
+        }
+        
+        qDebug() << "Calling generateTags for file" << fileId;
+        m_llmClient->generateTags(finalText, fileId, existingTags);
     }
 }
 
@@ -171,7 +184,17 @@ void LLMProcessor::onExtractionError(int fileId, const QString &error)
     if (m_isRunning) {
         FileDTO file = DatabaseManager::instance().getFileById(fileId);
         QString finalText = QString("Filename: %1").arg(file.filename);
-        m_llmClient->generateTags(finalText, fileId);
+        
+        // Get top 100 existing tags
+        QStringList existingTags;
+        QVariantList tags = DatabaseManager::instance().getAllTags();
+        int tagLimit = qMin(tags.size(), 100);
+        for (int i = 0; i < tagLimit; ++i) {
+            existingTags.append(tags.at(i).toMap()["name"].toString());
+        }
+        
+        qDebug() << "Calling generateTags for file" << fileId;
+        m_llmClient->generateTags(finalText, fileId, existingTags);
     }
 }
 

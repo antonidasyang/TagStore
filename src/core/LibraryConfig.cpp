@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QCoreApplication>
+#include <QProcess>
 
 const QString DEFAULT_SYSTEM_PROMPT = R"(
     You are a professional document analysis assistant. Your task is to generate highly specific tags based ONLY on the provided text or filename.
@@ -343,5 +344,19 @@ void LibraryConfig::setStartWithWindows(bool enable)
     emit startWithWindowsChanged();
 #else
     Q_UNUSED(enable);
+#endif
+}
+
+void LibraryConfig::showInExplorer(const QString &filePath)
+{
+#ifdef Q_OS_WIN
+    QString path = QDir::toNativeSeparators(filePath);
+    QStringList args;
+    args << "/select," << path;
+    QProcess::startDetached("explorer.exe", args);
+#else
+    // For macOS/Linux, just open parent folder
+    QFileInfo info(filePath);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
 #endif
 }

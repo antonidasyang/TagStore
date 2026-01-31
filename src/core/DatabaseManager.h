@@ -25,6 +25,7 @@ struct FileDTO {
 struct TagDTO {
     int id = -1;
     QString name;
+    int count = 0;
 };
 
 struct QueueItemDTO {
@@ -55,6 +56,7 @@ public:
     Q_INVOKABLE FileDTO getFileByPath(const QString &path);
     Q_INVOKABLE bool removeFile(int fileId);
     Q_INVOKABLE bool restoreFile(int fileId); // Restore to original path
+    Q_INVOKABLE bool renameFile(int fileId, const QString &newName);
     
     // Tag operations
     Q_INVOKABLE int getOrCreateTag(const QString &tagName);
@@ -86,6 +88,7 @@ public:
     
 signals:
     void fileAdded(int fileId);
+    void fileRenamed(int fileId);
     void fileRemoved(int fileId);
     void tagsUpdated(int fileId);
     void globalTagsChanged();
@@ -105,6 +108,12 @@ private:
     QMutex m_mutex;
     QString m_dbPath;
     bool m_initialized = false;
+    
+    // Tag Cache
+    QList<TagDTO> m_tagCache;
+    bool m_tagCacheValid = false;
+    void invalidateTagCache();
+    void refreshTagCache();
 };
 
 #endif // DATABASEMANAGER_H

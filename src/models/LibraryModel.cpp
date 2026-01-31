@@ -8,6 +8,7 @@ LibraryModel::LibraryModel(QObject *parent)
     // Connect to database signals with QueuedConnection for thread safety
     DatabaseManager &db = DatabaseManager::instance();
     connect(&db, &DatabaseManager::fileAdded, this, &LibraryModel::onFileAdded, Qt::QueuedConnection);
+    connect(&db, &DatabaseManager::fileRenamed, this, &LibraryModel::onFileAdded, Qt::QueuedConnection);
     connect(&db, &DatabaseManager::fileRemoved, this, &LibraryModel::onFileRemoved, Qt::QueuedConnection);
     connect(&db, &DatabaseManager::tagsUpdated, this, &LibraryModel::onTagsUpdated, Qt::QueuedConnection);
     connect(&db, &DatabaseManager::globalTagsChanged, this, &LibraryModel::refresh, Qt::QueuedConnection);
@@ -170,6 +171,16 @@ void LibraryModel::updateFileTags(int fileId)
 
 void LibraryModel::onFileAdded(int fileId)
 {
+    // Check if file already exists (update case)
+    for (int i = 0; i < m_files.count(); ++i) {
+        if (m_files[i].id == fileId) {
+            m_files[i] = fileFromDTO(fileId);
+            QModelIndex idx = index(i);
+            emit dataChanged(idx, idx); // Update all roles
+            return;
+        }
+    }
+
     FileItem item = fileFromDTO(fileId);
     if (item.id > 0) {
         beginInsertRows(QModelIndex(), 0, 0);

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Read version from file
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "version.txt")
 file(READ "version.txt" VER)
 string(STRIP "${VER}" VER)
 
