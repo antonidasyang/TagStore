@@ -323,14 +323,10 @@ ApplicationWindow {
     
     // Rename File Dialog
     Dialog {
-        id: renameFileDialog
-        property int fileId: -1
-        property string oldName: ""
-        
         modal: true
         closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
-        width: 400
+        width: 500
         padding: 24
         bottomPadding: 24
         
@@ -1322,7 +1318,7 @@ ApplicationWindow {
         modal: true
         closePolicy: Popup.CloseOnEscape
         anchors.centerIn: parent
-        width: 480
+        width: 550
         padding: 24
         bottomPadding: 24
         
@@ -1922,7 +1918,7 @@ ApplicationWindow {
         flags: Qt.FramelessWindowHint | Qt.Dialog | Qt.WindowStaysOnTopHint
         modality: Qt.ApplicationModal
         color: "transparent"
-        width: 480
+        width: 550
         height: conflictContentWin.implicitHeight + 80
         x: (Screen.width - width) / 2
         y: (Screen.height - height) / 2

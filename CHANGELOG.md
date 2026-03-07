@@ -1,5 +1,15 @@
 # TagStore Changelog
 
+## [1.0.0.4] - 2026-03-07
+### Fixed
+- **Startup Freeze on dGPU**: Forced D3D11 RHI backend on Windows to bypass D3D12 PSO compilation, which blocked the main thread on startup when using a dedicated GPU.
+- **Dialog Width**: Widened the Rename dialog (400→500) and Conflict dialogs (480→550) for better readability.
+
+### Build
+- Added missing `Qt6::QuickControls2` module dependency required by `QQuickStyle`.
+- Removed unused `FileHasher.h` include from `main.cpp`.
+- Fixed clazy warning: avoid calling `QList::first()` on a temporary object.
+
 ## [1.0.0.3] - 2026-01-22
 ### Fixed
 - **Critical AI Fix**: Resolved "Parameter count mismatch" error in AI tagging queue by enforcing schema consistency.

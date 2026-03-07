@@ -8,10 +8,14 @@
 #include <QLocalSocket>
 #include <QTextStream>
 #include <QWindow>
+#include <QQuickStyle>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 #include "core/DatabaseManager.h"
 #include "core/LibraryConfig.h"
-#include "core/FileHasher.h"
 #include "core/LLMClient.h"
 #include "core/ThemeManager.h"
 #include "core/LanguageManager.h"
@@ -21,6 +25,18 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    if (GetSystemMetrics(SM_REMOTESESSION)) {
+        // Remote Desktop: use OpenGL to avoid D3D crashes
+        qputenv("QSG_RHI_BACKEND", "opengl");
+    } else {
+        // D3D12 PSO compilation blocks the main thread on startup with dedicated GPUs.
+        // D3D11 initializes significantly faster with no meaningful quality loss for this app.
+        qputenv("QSG_RHI_BACKEND", "d3d11");
+    }
+#endif
+
+    QQuickStyle::setStyle("Basic");
     QGuiApplication app(argc, argv);
     
     // --- Singleton Check ---
@@ -113,7 +129,8 @@ int main(int argc, char *argv[])
             
             if (cmd == "SHOW") {
                 // Find main window and show it
-                QObject *root = engine.rootObjects().first();
+                const auto roots = engine.rootObjects();
+                QObject *root = roots.first();
                 QWindow *window = qobject_cast<QWindow*>(root);
                 if (window) {
                     // We need to call show() and requestActivate()

@@ -17,6 +17,7 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS
     Core
     Quick
+    QuickControls2
     Sql
     Network
     Concurrent
@@ -135,6 +136,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Quick
+    Qt6::QuickControls2
     Qt6::Sql
     Qt6::Network
     Qt6::Concurrent
