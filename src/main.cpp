@@ -30,9 +30,11 @@ int main(int argc, char *argv[])
         // Remote Desktop: use OpenGL to avoid D3D crashes
         qputenv("QSG_RHI_BACKEND", "opengl");
     } else {
-        // D3D12 PSO compilation blocks the main thread on startup with dedicated GPUs.
-        // D3D11 initializes significantly faster with no meaningful quality loss for this app.
-        qputenv("QSG_RHI_BACKEND", "d3d11");
+        // D3D11/D3D12 both require runtime HLSL compilation (via D3DCompile.dll) which
+        // blocks the main thread and causes a black-screen freeze on startup with dedicated
+        // GPUs. OpenGL uses GLSL which is compiled significantly faster by NVIDIA/AMD drivers,
+        // eliminating the freeze entirely.
+        qputenv("QSG_RHI_BACKEND", "opengl");
     }
 #endif
 

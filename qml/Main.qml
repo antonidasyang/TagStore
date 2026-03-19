@@ -27,6 +27,14 @@ ApplicationWindow {
             window.visibility = libraryConfig.windowMaximized ? Window.Maximized : Window.Windowed
             window.visible = true
         }
+        balloonDelayTimer.start()
+    }
+
+    Timer {
+        id: balloonDelayTimer
+        interval: 500
+        repeat: false
+        onTriggered: dropBalloon.visible = true
     }
     
     property bool forceQuit: false
@@ -1349,7 +1357,7 @@ ApplicationWindow {
     DropBalloon {
         id: dropBalloon
         transientParent: null
-        visible: true
+        visible: false
         
         onRequestShowWindow: {
             window.show()
