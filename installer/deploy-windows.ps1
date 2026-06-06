@@ -159,8 +159,7 @@ if ($Installer) {
         $ver = (Get-Content (Join-Path $RepoRoot "version.txt")).Trim()
         Write-Host ""
         Write-Step "Installer ready: $($setup.FullName)"
-        Write-Host "Next, publish it to the MinIO update bucket (from WSL/Git-Bash):" -ForegroundColor Yellow
-        Write-Host "    cd update-server" -ForegroundColor Yellow
-        Write-Host "    ./publish.sh $ver --win `"$($setup.FullName)`" --notes `"...`"" -ForegroundColor Yellow
+        Write-Host "Next, publish it to the MinIO update bucket (PowerShell):" -ForegroundColor Yellow
+        Write-Host "    .\update-server\publish.ps1 -Version $ver -Win `"$($setup.FullName)`" -Notes `"...`"" -ForegroundColor Yellow
     }
 }

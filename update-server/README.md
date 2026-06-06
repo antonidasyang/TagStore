@@ -98,8 +98,21 @@ Inno Setup), then run `publish.sh` to upload.
 
 ## Publishing a release
 
-Use `publish.sh` — it uploads the package(s), computes SHA-256, generates
-`latest.json`, and uploads the manifest with `Cache-Control: no-cache`:
+Both scripts do the same thing: upload the package(s), compute SHA-256,
+generate `latest.json`, and upload the manifest with `Cache-Control: no-cache`.
+Use whichever matches your shell — **`publish.ps1` on Windows**, `publish.sh`
+on Linux/macOS/WSL/Git-Bash.
+
+**Windows (PowerShell)** — needs `mc.exe` on PATH
+([download](https://dl.min.io/client/mc/release/windows-amd64/mc.exe)):
+
+```powershell
+.\publish.ps1 -Version 1.0.0.5 `
+  -Win ..\installer\TagStoreSetup_1.0.0.5.exe `
+  -Notes "Improved AI tagging relevance and consolidated near-duplicate tags."
+```
+
+**Linux / macOS / WSL / Git-Bash:**
 
 ```bash
 ./publish.sh 1.0.0.5 \
@@ -107,8 +120,9 @@ Use `publish.sh` — it uploads the package(s), computes SHA-256, generates
   --notes "Improved AI tagging relevance and consolidated near-duplicate tags."
 ```
 
-Pass any subset of `--win` / `--mac` / `--linux`. Override `MC_ALIAS`,
-`BUCKET`, or `BASE_URL` via environment variables if the server moves.
+Pass any subset of windows/macos/linux packages. Override the alias, bucket,
+or base URL via `-McAlias`/`-Bucket`/`-BaseUrl` (PowerShell) or the
+`MC_ALIAS`/`BUCKET`/`BASE_URL` environment variables (bash).
 
 ## Release checklist
 
@@ -116,8 +130,8 @@ Pass any subset of `--win` / `--mac` / `--linux`. Override `MC_ALIAS`,
 2. On Windows, run `installer\deploy-windows.ps1 -All` — it builds Release,
    runs `windeployqt6 --qmldir ..\qml`, and compiles the Inno Setup installer
    to `installer\TagStoreSetup_<ver>.exe`.
-3. Run `publish.sh <ver> --win <setup.exe> --notes "..."` (from WSL or Git Bash)
-   to upload the installer + `latest.json`.
+3. Run `publish.ps1 -Version <ver> -Win <setup.exe> -Notes "..."` (or the bash
+   `publish.sh` equivalent) to upload the installer + `latest.json`.
 4. Existing installs pick up the update on their next launch (silent check ~4s
    after startup) or via **Settings → General → Check for Updates**.
 
