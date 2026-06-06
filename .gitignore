@@ -158,3 +158,6 @@ installer/*.exe
 
 # gemini
 GEMINI.md
+
+# MinIO publishing credentials — NEVER commit
+update-server/minio.secret.env

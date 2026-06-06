@@ -25,12 +25,31 @@
 
 set -euo pipefail
 
-MC_ALIAS="${MC_ALIAS:-d2s}"
-BUCKET="${BUCKET:-tagstore-updates}"
-BASE_URL="${BASE_URL:-https://oss.d2ssoft.com/tagstore-updates}"
+# Load MinIO credentials/config from the gitignored secret file next to this
+# script (KEY=value lines; same format publish.ps1 reads).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CRED_FILE="${MINIO_CRED_FILE:-$SCRIPT_DIR/minio.secret.env}"
+if [[ -f "$CRED_FILE" ]]; then
+  set -a; # shellcheck disable=SC1090
+  source "$CRED_FILE"; set +a
+fi
+
+MC_ALIAS="${MC_ALIAS:-${MINIO_ALIAS:-d2s}}"
+BUCKET="${BUCKET:-${MINIO_BUCKET:-tagstore-updates}}"
+BASE_URL="${BASE_URL:-${MINIO_BASE_URL:-https://oss.d2ssoft.com/tagstore-updates}}"
 
 if ! command -v mc >/dev/null 2>&1; then
   echo "error: MinIO client 'mc' not found on PATH." >&2
+  exit 1
+fi
+
+# Configure the mc alias from the secret file if endpoint + keys are present.
+if [[ -n "${MINIO_ENDPOINT:-}" && -n "${MINIO_ACCESS_KEY:-}" && -n "${MINIO_SECRET_KEY:-}" ]]; then
+  echo ">> configuring mc alias '$MC_ALIAS' -> $MINIO_ENDPOINT (from $(basename "$CRED_FILE"))"
+  mc alias set "$MC_ALIAS" "$MINIO_ENDPOINT" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY" >/dev/null
+elif [[ ! -f "$CRED_FILE" ]]; then
+  echo "error: credentials file not found: $CRED_FILE" >&2
+  echo "       copy minio.secret.env.example to minio.secret.env and fill in your keys." >&2
   exit 1
 fi
 

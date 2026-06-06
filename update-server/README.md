@@ -98,10 +98,36 @@ Inno Setup), then run `publish.sh` to upload.
 
 ## Publishing a release
 
-Both scripts do the same thing: upload the package(s), compute SHA-256,
-generate `latest.json`, and upload the manifest with `Cache-Control: no-cache`.
-Use whichever matches your shell — **`publish.ps1` on Windows**, `publish.sh`
-on Linux/macOS/WSL/Git-Bash.
+### Credentials (one-time, never committed)
+
+Both publish scripts read your MinIO keys from a gitignored file so you never
+type them on the command line:
+
+```bash
+cd update-server
+cp minio.secret.env.example minio.secret.env   # (Windows: Copy-Item)
+```
+
+Edit `minio.secret.env` and fill in `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY`
+(and `MINIO_ENDPOINT` if it differs). On the first run the script calls
+`mc alias set` for you from this file. `minio.secret.env` is in `.gitignore` —
+only the `.example` template is tracked. Lock it down on shared machines:
+
+```bash
+chmod 600 minio.secret.env                      # POSIX
+# Windows: icacls minio.secret.env /inheritance:r /grant:r "$($env:USERNAME):(R)"
+```
+
+> The bucket-creation step above (`mc mb` / `mc anonymous`) still needs `mc`
+> configured once. Either run `mc alias set d2s ...` by hand for that, or create
+> `minio.secret.env` first and run any publish — it sets the alias on the way.
+
+### Run it
+
+Both scripts upload the package(s), compute SHA-256, generate `latest.json`,
+and upload the manifest with `Cache-Control: no-cache`. Use whichever matches
+your shell — **`publish.ps1` on Windows**, `publish.sh` on
+Linux/macOS/WSL/Git-Bash.
 
 **Windows (PowerShell)** — needs `mc.exe` on PATH
 ([download](https://dl.min.io/client/mc/release/windows-amd64/mc.exe)):

@@ -34,20 +34,65 @@ param(
     [string]$Mac,
     [string]$Linux,
     [string]$Notes = "",
-    [string]$McAlias = $(if ($env:MC_ALIAS) { $env:MC_ALIAS } else { "d2s" }),
-    [string]$Bucket  = $(if ($env:BUCKET)   { $env:BUCKET }   else { "tagstore-updates" }),
-    [string]$BaseUrl = $(if ($env:BASE_URL) { $env:BASE_URL } else { "https://oss.d2ssoft.com/tagstore-updates" })
+    [string]$McAlias,
+    [string]$Bucket,
+    [string]$BaseUrl,
+    # Gitignored file holding MinIO endpoint + access/secret keys.
+    [string]$CredentialsFile = (Join-Path $PSScriptRoot "minio.secret.env")
 )
 
 $ErrorActionPreference = "Stop"
-$BaseUrl = $BaseUrl.TrimEnd('/')
+
+function Write-Step($m) { Write-Host "==> $m" -ForegroundColor Cyan }
+
+# --- Load MinIO credentials/config from the (gitignored) secret file ---------
+function Read-EnvFile([string]$path) {
+    $map = @{}
+    if (-not (Test-Path $path)) { return $map }
+    foreach ($line in Get-Content -LiteralPath $path) {
+        $t = $line.Trim()
+        if ($t -eq "" -or $t.StartsWith("#")) { continue }
+        $i = $t.IndexOf("=")
+        if ($i -lt 1) { continue }
+        $k = $t.Substring(0, $i).Trim()
+        $v = $t.Substring($i + 1).Trim().Trim('"').Trim("'")
+        $map[$k] = $v
+    }
+    return $map
+}
+
+$cfg = Read-EnvFile $CredentialsFile
+
+# Precedence: explicit -Param > secret file > env var > built-in default.
+function Resolve-Setting($paramVal, $cfgKey, $envName, $default) {
+    if ($paramVal) { return $paramVal }
+    if ($cfg.ContainsKey($cfgKey) -and $cfg[$cfgKey]) { return $cfg[$cfgKey] }
+    $e = [Environment]::GetEnvironmentVariable($envName)
+    if ($e) { return $e }
+    return $default
+}
+$McAlias = Resolve-Setting $McAlias "MINIO_ALIAS"    "MC_ALIAS" "d2s"
+$Bucket  = Resolve-Setting $Bucket  "MINIO_BUCKET"   "BUCKET"   "tagstore-updates"
+$BaseUrl = (Resolve-Setting $BaseUrl "MINIO_BASE_URL" "BASE_URL" "https://oss.d2ssoft.com/tagstore-updates").TrimEnd('/')
 
 if (-not (Get-Command mc.exe -ErrorAction SilentlyContinue) -and
     -not (Get-Command mc    -ErrorAction SilentlyContinue)) {
     throw "MinIO client 'mc.exe' not found on PATH. Download: https://dl.min.io/client/mc/release/windows-amd64/mc.exe"
 }
 
-function Write-Step($m) { Write-Host "==> $m" -ForegroundColor Cyan }
+# Configure the mc alias from the secret file (keys never touch the command line).
+$endpoint = $cfg["MINIO_ENDPOINT"]
+$access   = $cfg["MINIO_ACCESS_KEY"]
+$secret   = $cfg["MINIO_SECRET_KEY"]
+if ($endpoint -and $access -and $secret) {
+    Write-Step "configuring mc alias '$McAlias' -> $endpoint (from $(Split-Path $CredentialsFile -Leaf))"
+    & mc alias set $McAlias $endpoint $access $secret | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "mc alias set failed ($LASTEXITCODE). Check the keys in $CredentialsFile." }
+} elseif (-not (Test-Path $CredentialsFile)) {
+    throw "Credentials file not found: $CredentialsFile`nCopy minio.secret.env.example to minio.secret.env and fill in your keys."
+} else {
+    Write-Warning "No MINIO_* keys in $CredentialsFile; assuming 'mc alias set $McAlias ...' was configured manually."
+}
 
 # Build the platforms map, uploading each package as we go.
 $platforms = [ordered]@{}
