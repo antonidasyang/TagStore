@@ -273,6 +273,21 @@ void LanguageManager::initTranslations()
     // Balloon
     zh["Drag files and folders here"] = "拖放文件和文件夹到这里";
     zh["TagStore is running in the background"] = "TagStore 正在后台运行";
-    
+
+    // Updates
+    zh["Updates"] = "更新";
+    zh["Current version"] = "当前版本";
+    zh["Check for Updates"] = "检查更新";
+    zh["Checking…"] = "正在检查…";
+    zh["You're up to date."] = "已是最新版本。";
+    zh["New version available"] = "有新版本可用";
+    zh["Downloading…"] = "正在下载…";
+    zh["Installing…"] = "正在安装…";
+    zh["Launching installer…"] = "正在启动安装程序…";
+    zh["Update Available"] = "发现新版本";
+    zh["Update Now"] = "立即更新";
+    zh["Later"] = "稍后";
+    zh["Retry"] = "重试";
+
     m_translations["zh_CN"] = zh;
 }
