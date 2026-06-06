@@ -129,8 +129,15 @@ and upload the manifest with `Cache-Control: no-cache`. Use whichever matches
 your shell — **`publish.ps1` on Windows**, `publish.sh` on
 Linux/macOS/WSL/Git-Bash.
 
-**Windows (PowerShell)** — needs `mc.exe` on PATH
-([download](https://dl.min.io/client/mc/release/windows-amd64/mc.exe)):
+**Windows (PowerShell)** — needs the MinIO client `mc.exe`. The script finds it
+on PATH or sitting next to `publish.ps1` in `update-server\`. If you don't have
+it, pass `-InstallMc` once and the script downloads it for you:
+
+```powershell
+.\publish.ps1 -Version 1.0.0.5 -Win ..\installer\TagStoreSetup_1.0.0.5.exe -Notes "..." -InstallMc
+```
+
+(`mc.exe` is gitignored.) Subsequent runs don't need the flag:
 
 ```powershell
 .\publish.ps1 -Version 1.0.0.5 `

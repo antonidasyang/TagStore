@@ -38,7 +38,9 @@ param(
     [string]$Bucket,
     [string]$BaseUrl,
     # Gitignored file holding MinIO endpoint + access/secret keys.
-    [string]$CredentialsFile = (Join-Path $PSScriptRoot "minio.secret.env")
+    [string]$CredentialsFile = (Join-Path $PSScriptRoot "minio.secret.env"),
+    # Download mc.exe into this folder if it isn't found anywhere.
+    [switch]$InstallMc
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,10 +77,40 @@ $McAlias = Resolve-Setting $McAlias "MINIO_ALIAS"    "MC_ALIAS" "d2s"
 $Bucket  = Resolve-Setting $Bucket  "MINIO_BUCKET"   "BUCKET"   "tagstore-updates"
 $BaseUrl = (Resolve-Setting $BaseUrl "MINIO_BASE_URL" "BASE_URL" "https://oss.d2ssoft.com/tagstore-updates").TrimEnd('/')
 
-if (-not (Get-Command mc.exe -ErrorAction SilentlyContinue) -and
-    -not (Get-Command mc    -ErrorAction SilentlyContinue)) {
-    throw "MinIO client 'mc.exe' not found on PATH. Download: https://dl.min.io/client/mc/release/windows-amd64/mc.exe"
+# Locate mc.exe: PATH first, then alongside this script (drop mc.exe in
+# update-server\ and it just works — no PATH edits needed).
+function Resolve-Mc {
+    foreach ($n in 'mc.exe', 'mc') {
+        $c = Get-Command $n -ErrorAction SilentlyContinue
+        if ($c) { return $c.Source }
+    }
+    foreach ($p in @(
+            (Join-Path $PSScriptRoot 'mc.exe'),
+            (Join-Path $PSScriptRoot 'tools\mc.exe'))) {
+        if (Test-Path $p) { return $p }
+    }
+    return $null
 }
+
+$Mc = Resolve-Mc
+if (-not $Mc) {
+    $mcUrl  = "https://dl.min.io/client/mc/release/windows-amd64/mc.exe"
+    $mcDest = Join-Path $PSScriptRoot "mc.exe"
+    if ($InstallMc) {
+        Write-Step "downloading mc.exe -> $mcDest"
+        Invoke-WebRequest -Uri $mcUrl -OutFile $mcDest
+        $Mc = $mcDest
+    } else {
+        throw @"
+MinIO client 'mc.exe' not found.
+Fix it either way:
+  A) Auto-download:  re-run this command with  -InstallMc
+  B) Manual: download $mcUrl
+     and save it as  $mcDest   (or anywhere on PATH)
+"@
+    }
+}
+Write-Step "using mc: $Mc"
 
 # Configure the mc alias from the secret file (keys never touch the command line).
 $endpoint = $cfg["MINIO_ENDPOINT"]
@@ -86,7 +118,7 @@ $access   = $cfg["MINIO_ACCESS_KEY"]
 $secret   = $cfg["MINIO_SECRET_KEY"]
 if ($endpoint -and $access -and $secret) {
     Write-Step "configuring mc alias '$McAlias' -> $endpoint (from $(Split-Path $CredentialsFile -Leaf))"
-    & mc alias set $McAlias $endpoint $access $secret | Out-Null
+    & $Mc alias set $McAlias $endpoint $access $secret | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "mc alias set failed ($LASTEXITCODE). Check the keys in $CredentialsFile." }
 } elseif (-not (Test-Path $CredentialsFile)) {
     throw "Credentials file not found: $CredentialsFile`nCopy minio.secret.env.example to minio.secret.env and fill in your keys."
@@ -102,7 +134,7 @@ function Add-Platform([string]$key, [string]$file) {
     $name   = Split-Path $file -Leaf
     $remote = "$McAlias/$Bucket/$Version/$name"
     Write-Step "uploading $key : $file -> $remote"
-    & mc cp $file $remote
+    & $Mc cp $file $remote
     if ($LASTEXITCODE -ne 0) { throw "mc cp failed for $file ($LASTEXITCODE)" }
     $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
     $platforms[$key] = [ordered]@{
@@ -138,7 +170,7 @@ $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "tagstore-latest.json"
 [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Step "uploading manifest (Cache-Control: no-cache)"
-& mc cp --attr "Cache-Control=no-cache" $tmp "$McAlias/$Bucket/latest.json"
+& $Mc cp --attr "Cache-Control=no-cache" $tmp "$McAlias/$Bucket/latest.json"
 if ($LASTEXITCODE -ne 0) { throw "mc cp failed for latest.json ($LASTEXITCODE)" }
 Remove-Item $tmp -ErrorAction SilentlyContinue
 

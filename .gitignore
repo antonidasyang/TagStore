@@ -161,3 +161,10 @@ GEMINI.md
 
 # MinIO publishing credentials — NEVER commit
 update-server/minio.secret.env
+
+# MinIO client binary (downloaded locally, not source)
+update-server/mc.exe
+update-server/tools/
+
+# 内网 MinIO 接入文档（含明文密钥）— 绝不提交
+docs/tagstore-updates-bucket.md
