@@ -30,6 +30,7 @@ set(SOURCES
     src/core/FileHasher.cpp
     src/core/LibraryConfig.cpp
     src/core/LLMClient.cpp
+    src/core/Updater.cpp
     src/core/ThemeManager.cpp
     src/core/LanguageManager.cpp
     src/models/LibraryModel.cpp
@@ -43,6 +44,7 @@ set(HEADERS
     src/core/FileHasher.h
     src/core/LibraryConfig.h
     src/core/LLMClient.h
+    src/core/Updater.h
     src/core/ThemeManager.h
     src/core/LanguageManager.h
     src/models/LibraryModel.h

@@ -1,5 +1,13 @@
 # TagStore Changelog
 
+## [1.0.0.5] - 2026-06-06
+### Added
+- **Auto-Update**: The app now checks a public MinIO bucket (`oss.d2ssoft.com`) for new releases on startup and offers a one-click update. On Windows it downloads and launches the installer; on macOS/Linux it downloads and opens the package. Also available manually via **Settings → General → Check for Updates**. See `update-server/` for the publishing workflow.
+
+### Fixed
+- **AI Tagging Relevance**: Fixed a feedback loop that caused the same generic tags to be applied to most files. Existing tags are now sampled without a popularity signal, the consolidation hint only merges true synonyms, and the default prompt/temperature were tuned for more content-specific tags.
+- **macOS Build**: Added missing `QDesktopServices`/`QUrl` includes in `LibraryConfig.cpp` so the non-Windows "show in file manager" path compiles.
+
 ## [1.0.0.4] - 2026-03-07
 ### Fixed
 - **Startup Freeze on dGPU**: Forced D3D11 RHI backend on Windows to bypass D3D12 PSO compilation, which blocked the main thread on startup when using a dedicated GPU.

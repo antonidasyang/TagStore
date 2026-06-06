@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QProcess>
+#include <QDesktopServices>
+#include <QUrl>
 
 const QString DEFAULT_SYSTEM_PROMPT = R"(
     You are a professional document analysis assistant. Generate 3-7 tags that

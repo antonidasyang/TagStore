@@ -9,6 +9,7 @@
 #include <QTextStream>
 #include <QWindow>
 #include <QQuickStyle>
+#include <QTimer>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -17,6 +18,7 @@
 #include "core/DatabaseManager.h"
 #include "core/LibraryConfig.h"
 #include "core/LLMClient.h"
+#include "core/Updater.h"
 #include "core/ThemeManager.h"
 #include "core/LanguageManager.h"
 #include "models/LibraryModel.h"
@@ -91,6 +93,7 @@ int main(int argc, char *argv[])
     FileIngestor fileIngestor;
     LLMClient llmClient;
     LLMProcessor llmProcessor(&llmClient);
+    Updater updater;
     
     // Setup QML engine
     QQmlApplicationEngine engine;
@@ -107,6 +110,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("fileIngestor", &fileIngestor);
     engine.rootContext()->setContextProperty("llmClient", &llmClient);
     engine.rootContext()->setContextProperty("llmProcessor", &llmProcessor);
+    engine.rootContext()->setContextProperty("updater", &updater);
     
     // Load main QML file
     using namespace Qt::StringLiterals;
@@ -161,6 +165,12 @@ int main(int argc, char *argv[])
     
     // Start LLM processor to handle AI tagging queue
     llmProcessor.start();
-    
+
+    // Silently check for updates a few seconds after startup; the QML layer
+    // pops the update dialog only if a newer version is actually found.
+    QTimer::singleShot(4000, &updater, [&updater]() {
+        updater.checkForUpdates(/*silent=*/true);
+    });
+
     return app.exec();
 }

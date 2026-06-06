@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0.5",
+  "pubDate": "2026-06-06",
+  "notes": "Improved AI tagging relevance and consolidated near-duplicate tags.",
+  "platforms": {
+    "windows": {
+      "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStoreSetup_1.0.0.5.exe",
+      "sha256": ""
+    },
+    "macos": {
+      "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStore-1.0.0.5.dmg",
+      "sha256": ""
+    },
+    "linux": {
+      "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStore-1.0.0.5.tar.gz",
+      "sha256": ""
+    }
+  }
+}

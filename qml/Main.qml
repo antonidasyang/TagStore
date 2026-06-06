@@ -761,10 +761,89 @@ ApplicationWindow {
                             text: t("Start with Windows")
                             checked: libraryConfig.startWithWindows
                         }
-                        
+
+                        // Divider
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 4
+                            height: 1
+                            color: themeManager.border
+                        }
+
+                        // Updates
+                        Label {
+                            text: t("Updates")
+                            color: themeManager.textPrimary
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            ColumnLayout {
+                                spacing: 2
+                                Label {
+                                    text: t("Current version") + ": " + updater.currentVersion
+                                    color: themeManager.textSecondary
+                                    font.pixelSize: 13
+                                }
+                                Label {
+                                    visible: text.length > 0
+                                    font.pixelSize: 12
+                                    color: updater.statusKey === "error"
+                                               ? "#ef4444"
+                                               : themeManager.textSecondary
+                                    text: {
+                                        switch (updater.statusKey) {
+                                        case "checking":    return t("Checking…")
+                                        case "uptodate":    return t("You're up to date.")
+                                        case "available":   return t("New version available") + ": " + updater.latestVersion
+                                        case "downloading": return t("Downloading…")
+                                        case "installing":  return t("Installing…")
+                                        case "error":       return updater.errorString
+                                        default:            return ""
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Rectangle {
+                                Layout.preferredWidth: 150
+                                Layout.preferredHeight: 36
+                                radius: 8
+                                color: checkUpdateMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
+                                opacity: updater.isBusy ? 0.6 : 1.0
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: updater.updateAvailable ? t("Update Now") : t("Check for Updates")
+                                    color: "white"
+                                    font.pixelSize: 13
+                                }
+
+                                MouseArea {
+                                    id: checkUpdateMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: !updater.isBusy
+                                    onClicked: {
+                                        if (updater.updateAvailable)
+                                            updateDialog.open()
+                                        else
+                                            updater.checkForUpdates(false)
+                                    }
+                                }
+                            }
+                        }
+
                         Item { Layout.fillHeight: true }
                     }
-                    
+
                     // 1. Appearance
                     ColumnLayout {
                         spacing: 20
@@ -1116,6 +1195,182 @@ ApplicationWindow {
         }
     }
     
+    // Auto-pop the update dialog when the silent startup check finds a newer version.
+    Connections {
+        target: updater
+        function onUpdateFound() {
+            updateDialog.open()
+        }
+    }
+
+    // Update dialog (shown on startup when an update is found, or via Settings).
+    Dialog {
+        id: updateDialog
+        modal: true
+        anchors.centerIn: parent
+        width: 460
+        padding: 0
+        closePolicy: updater.statusKey === "downloading" || updater.statusKey === "installing"
+                         ? Popup.NoAutoClose
+                         : Popup.CloseOnEscape
+
+        background: Rectangle {
+            color: themeManager.surface
+            radius: 12
+            border.color: themeManager.border
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 16
+
+            Item { Layout.preferredHeight: 8 }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                spacing: 12
+
+                Text {
+                    text: "🚀"
+                    font.pixelSize: 28
+                }
+
+                ColumnLayout {
+                    spacing: 2
+                    Label {
+                        text: t("Update Available")
+                        color: themeManager.textPrimary
+                        font.pixelSize: 18
+                        font.weight: Font.Bold
+                    }
+                    Label {
+                        text: updater.currentVersion + "  →  " + updater.latestVersion
+                        color: themeManager.textSecondary
+                        font.pixelSize: 13
+                    }
+                }
+            }
+
+            // Release notes
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                Layout.preferredHeight: Math.min(notesText.implicitHeight + 16, 160)
+                visible: updater.releaseNotes.length > 0
+                clip: true
+
+                Rectangle {
+                    width: parent.width
+                    height: notesText.implicitHeight + 16
+                    color: themeManager.background
+                    radius: 8
+
+                    Text {
+                        id: notesText
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        text: updater.releaseNotes
+                        wrapMode: Text.WordWrap
+                        color: themeManager.textSecondary
+                        font.pixelSize: 13
+                    }
+                }
+            }
+
+            // Progress / error line
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                spacing: 6
+                visible: updater.isBusy || updater.statusKey === "error" || updater.statusKey === "installing"
+
+                ProgressBar {
+                    Layout.fillWidth: true
+                    visible: updater.statusKey === "downloading"
+                    from: 0; to: 1
+                    value: updater.downloadProgress
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 12
+                    color: updater.statusKey === "error" ? "#ef4444" : themeManager.textSecondary
+                    text: {
+                        switch (updater.statusKey) {
+                        case "downloading": return t("Downloading…") + " " + Math.round(updater.downloadProgress * 100) + "%"
+                        case "installing":  return t("Launching installer…")
+                        case "error":       return updater.errorString
+                        default:            return ""
+                        }
+                    }
+                }
+            }
+
+            // Buttons
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                Layout.bottomMargin: 20
+                spacing: 12
+
+                Item { Layout.fillWidth: true }
+
+                // Later
+                Rectangle {
+                    Layout.preferredWidth: 90
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    visible: !updater.isBusy
+                    color: laterMouse.containsMouse ? themeManager.surfaceHover : themeManager.surface
+                    border.color: themeManager.border
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: t("Later")
+                        color: themeManager.textSecondary
+                    }
+
+                    MouseArea {
+                        id: laterMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: updateDialog.close()
+                    }
+                }
+
+                // Update now
+                Rectangle {
+                    Layout.preferredWidth: 130
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    color: updateNowMouse.containsMouse ? themeManager.primaryHover : themeManager.primary
+                    opacity: updater.isBusy ? 0.6 : 1.0
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: updater.statusKey === "error" ? t("Retry") : t("Update Now")
+                        color: "white"
+                    }
+
+                    MouseArea {
+                        id: updateNowMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: !updater.isBusy
+                        onClicked: updater.downloadAndInstall()
+                    }
+                }
+            }
+        }
+    }
+
     FolderDialog {
         id: libraryFolderDialog
         title: t("Select Library Folder")
