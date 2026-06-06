@@ -117,13 +117,18 @@ Write-Host "    qmldir : $QmlDir"
     $Exe
 if ($LASTEXITCODE -ne 0) { throw "windeployqt failed ($LASTEXITCODE)." }
 
-# Ensure the license files Inno expects are present next to the binary.
-foreach ($f in @("LICENSE","LICENSE.txt","LICENSE_CN.txt")) {
-    $src = Join-Path $RepoRoot $f
-    if ((Test-Path $src) -and -not (Test-Path (Join-Path $BinDir $f))) {
-        Copy-Item $src $BinDir -ErrorAction SilentlyContinue
+# setup.iss shows license pages from bin\LICENSE.txt (English) and
+# bin\LICENSE_CN.txt (Chinese, UTF-8 with BOM). Copy the canonical files from
+# installer\ into bin\ so ISCC never fails on a missing license file.
+function Copy-License([string]$destName, [string[]]$sources) {
+    $dest = Join-Path $BinDir $destName
+    foreach ($s in $sources) {
+        if ($s -and (Test-Path $s)) { Copy-Item $s $dest -Force; return }
     }
+    Write-Warning "License '$destName' not found (looked: $($sources -join ', ')); ISCC may fail."
 }
+Copy-License "LICENSE.txt"    @((Join-Path $PSScriptRoot "LICENSE.txt"),    (Join-Path $RepoRoot "LICENSE"))
+Copy-License "LICENSE_CN.txt" @((Join-Path $PSScriptRoot "LICENSE_CN.txt"), (Join-Path $PSScriptRoot "LICENSE.txt"), (Join-Path $RepoRoot "LICENSE"))
 
 Write-Step "Deploy complete. Standalone app is in: $BinDir"
 
