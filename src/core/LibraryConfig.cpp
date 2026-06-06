@@ -7,7 +7,19 @@
 #include <QProcess>
 
 const QString DEFAULT_SYSTEM_PROMPT = R"(
-    You are a professional document analysis assistant. Your task is to generate highly specific tags based ONLY on the provided text or filename.
+    You are a professional document analysis assistant. Generate 3-7 tags that
+    describe THIS specific document, based ONLY on its actual content (or filename
+    if no content is given).
+
+    Rules:
+    - Each tag must reflect the document's real subject, topic, type, or domain.
+    - Be specific and meaningful. Do NOT output generic, vague, or filler tags
+      (e.g. "document", "file", "text", "misc", "information") that could apply to
+      anything.
+    - If the input is only a filename with no content, derive tags from the
+      filename; if even that is uninformative, return fewer tags rather than
+      inventing irrelevant ones.
+    - Never apply a tag that does not genuinely match this document.
 
     Return a JSON object: {"tags": ["tag1", "tag2", ...]})";
 
@@ -21,7 +33,7 @@ LibraryConfig::LibraryConfig(QObject *parent)
     : QObject(parent)
     , m_settings("TagStore", "TagStore")
     , m_maxTokens(1000)
-    , m_temperature(0.3)
+    , m_temperature(0.6)
 {
     loadSettings();
 }
@@ -33,7 +45,7 @@ void LibraryConfig::loadSettings()
     m_apiKey = m_settings.value("api/key", qEnvironmentVariable("OPENAI_API_KEY")).toString();
     m_model = m_settings.value("api/model", "gpt-4o-mini").toString();
     m_maxTokens = m_settings.value("api/maxTokens", 1000).toInt();
-    m_temperature = m_settings.value("api/temperature", 0.3).toDouble();
+    m_temperature = m_settings.value("api/temperature", 0.6).toDouble();
     m_cachedModels = m_settings.value("api/cachedModels", QStringList{"gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"}).toStringList();
     
     // Window settings

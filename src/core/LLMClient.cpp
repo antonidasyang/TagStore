@@ -164,7 +164,13 @@ void LLMClient::generateTags(const QString &documentText, int fileId, const QStr
     QString promptContent = QString("Extract tags from this document:\n\n%1").arg(truncatedText);
     
     if (!existingTags.isEmpty()) {
-        promptContent += QString("\n\nExisting tags in library (PREFER these if applicable):\n%1").arg(existingTags.join(", "));
+        promptContent += QString("\n\nExisting tags already used in the library are listed below. "
+                                 "After deciding the tags for this document, for EACH tag check this list: "
+                                 "if an existing tag means essentially the same thing (a synonym, abbreviation, "
+                                 "singular/plural, or different wording of the same concept), output that existing "
+                                 "tag verbatim instead of creating a near-duplicate. If no existing tag is a close "
+                                 "match, keep your new specific tag. Do NOT force an unrelated existing tag onto the "
+                                 "document just because it is in this list.\n%1").arg(existingTags.join(", "));
     }
     
     userMessage["content"] = promptContent;

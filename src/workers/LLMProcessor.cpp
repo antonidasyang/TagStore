@@ -4,6 +4,7 @@
 #include "core/DatabaseManager.h"
 #include <QDebug>
 #include <QDateTime>
+#include <QRandomGenerator>
 
 LLMProcessor::LLMProcessor(LLMClient *client, QObject *parent)
     : QObject(parent)
@@ -159,14 +160,8 @@ void LLMProcessor::onExtractionFinished(int fileId, const QString &text)
              finalText = QString("Filename: %1").arg(file.filename);
         }
         
-        // Get top 100 existing tags to guide the AI
-        QStringList existingTags;
-        QVariantList tags = DatabaseManager::instance().getAllTags();
-        int tagLimit = qMin(tags.size(), 100);
-        for (int i = 0; i < tagLimit; ++i) {
-            existingTags.append(tags.at(i).toMap()["name"].toString());
-        }
-        
+        QStringList existingTags = sampleExistingTags();
+
         qDebug() << "Calling generateTags for file" << fileId;
         m_llmClient->generateTags(finalText, fileId, existingTags);
     }
@@ -184,18 +179,53 @@ void LLMProcessor::onExtractionError(int fileId, const QString &error)
     if (m_isRunning) {
         FileDTO file = DatabaseManager::instance().getFileById(fileId);
         QString finalText = QString("Filename: %1").arg(file.filename);
-        
-        // Get top 100 existing tags
-        QStringList existingTags;
-        QVariantList tags = DatabaseManager::instance().getAllTags();
-        int tagLimit = qMin(tags.size(), 100);
-        for (int i = 0; i < tagLimit; ++i) {
-            existingTags.append(tags.at(i).toMap()["name"].toString());
-        }
-        
+
+        QStringList existingTags = sampleExistingTags();
+
         qDebug() << "Calling generateTags for file" << fileId;
         m_llmClient->generateTags(finalText, fileId, existingTags);
     }
+}
+
+QStringList LLMProcessor::sampleExistingTags(int maxTags) const
+{
+    // The AI uses this list to consolidate near-duplicate tags: when a tag it
+    // would create is essentially a synonym of an existing one, it reuses the
+    // existing tag instead. For that to work the relevant existing tags must
+    // actually be visible, so we send as many as fit (most libraries stay well
+    // under the cap, i.e. effectively the full list).
+    //
+    // getAllTags() is ordered by usage count DESC. If we ever exceed the cap we
+    // must NOT just take the first N — that would always feed the most-popular
+    // tags and, combined with the reuse hint, bias every file toward the same
+    // handful of tags. So beyond the cap we take a random sample instead.
+    QVariantList tags = DatabaseManager::instance().getAllTags();
+
+    QStringList allNames;
+    allNames.reserve(tags.size());
+    for (const QVariant &t : tags) {
+        const QString name = t.toMap()["name"].toString();
+        if (!name.isEmpty()) {
+            allNames.append(name);
+        }
+    }
+
+    if (allNames.size() > maxTags) {
+        // Partial Fisher-Yates shuffle: pick maxTags random unique names.
+        QStringList sample;
+        sample.reserve(maxTags);
+        for (int i = 0; i < maxTags; ++i) {
+            int j = i + QRandomGenerator::global()->bounded(allNames.size() - i);
+            allNames.swapItemsAt(i, j);
+            sample.append(allNames.at(i));
+        }
+        allNames = sample;
+    }
+
+    // Sort alphabetically so the list carries no usage-popularity signal and is
+    // easy for the model to scan for a matching tag.
+    allNames.sort(Qt::CaseInsensitive);
+    return allNames;
 }
 
 void LLMProcessor::onTagsGenerated(int fileId, const QStringList &tags)

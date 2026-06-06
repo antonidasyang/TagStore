@@ -5,6 +5,8 @@ cmake-build-*/
 out/
 bin/
 lib/
+.claude/
+CLAUDE.md
 
 # Qt Creator
 .qtcreator/

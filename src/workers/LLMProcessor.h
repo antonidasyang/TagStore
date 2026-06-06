@@ -49,6 +49,11 @@ private slots:
     
 private:
     void processItem(int queueId, int fileId);
+
+    // Returns existing tag names to let the AI consolidate near-duplicate tags.
+    // Sends the full list when it fits; beyond maxTags it randomly samples
+    // (never the top-N by popularity) to avoid biasing toward common tags.
+    QStringList sampleExistingTags(int maxTags = 200) const;
     
     LLMClient *m_llmClient;
     TextExtractor *m_textExtractor;
