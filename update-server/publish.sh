@@ -20,8 +20,9 @@
 #
 # Config (override via env):
 #   MC_ALIAS   mc alias name           (default: d2s)
-#   BUCKET     bucket name             (default: tagstore-updates)
-#   BASE_URL   public base URL, no /   (default: https://oss.d2ssoft.com/tagstore-updates)
+#   BUCKET     shared bucket name      (default: downloads)
+#   PRODUCT    product subfolder       (default: tagstore)
+#   BASE_URL   public base URL, no /   (default: https://oss.d2ssoft.com/downloads/tagstore)
 
 set -euo pipefail
 
@@ -35,8 +36,12 @@ if [[ -f "$CRED_FILE" ]]; then
 fi
 
 MC_ALIAS="${MC_ALIAS:-${MINIO_ALIAS:-d2s}}"
-BUCKET="${BUCKET:-${MINIO_BUCKET:-tagstore-updates}}"
-BASE_URL="${BASE_URL:-${MINIO_BASE_URL:-https://oss.d2ssoft.com/tagstore-updates}}"
+# Shared bucket; each product gets its own subfolder (downloads/<product>/...).
+BUCKET="${BUCKET:-${MINIO_BUCKET:-downloads}}"
+PRODUCT="${PRODUCT:-${MINIO_PRODUCT:-tagstore}}"
+BASE_URL="${BASE_URL:-${MINIO_BASE_URL:-https://oss.d2ssoft.com/downloads/tagstore}}"
+# Object-key prefix inside the shared bucket.
+PREFIX="${BUCKET}/${PRODUCT}"
 
 if ! command -v mc >/dev/null 2>&1; then
   echo "error: MinIO client 'mc' not found on PATH." >&2
@@ -98,7 +103,7 @@ add_platform() {
     exit 1
   fi
   local name; name="$(basename "$file")"
-  local remote="${BUCKET}/${VERSION}/${name}"
+  local remote="${PREFIX}/${VERSION}/${name}"
   echo ">> uploading $key: $file -> ${MC_ALIAS}/${remote}"
   mc cp "$file" "${MC_ALIAS}/${remote}"
   local hash; hash="$(sha256 "$file")"
@@ -134,6 +139,6 @@ echo ">> generated manifest:"
 cat "$WORK/latest.json"
 
 echo ">> uploading manifest (cache-control: no-cache)"
-mc cp --attr "Cache-Control=no-cache" "$WORK/latest.json" "${MC_ALIAS}/${BUCKET}/latest.json"
+mc cp --attr "Cache-Control=no-cache" "$WORK/latest.json" "${MC_ALIAS}/${PREFIX}/latest.json"
 
 echo ">> done. Clients will see ${VERSION} at ${BASE_URL}/latest.json"

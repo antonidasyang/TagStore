@@ -4,15 +4,15 @@
   "notes": "Improved AI tagging relevance and consolidated near-duplicate tags.",
   "platforms": {
     "windows": {
-      "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStoreSetup_1.0.0.5.exe",
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStoreSetup_1.0.0.5.exe",
       "sha256": ""
     },
     "macos": {
-      "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStore-1.0.0.5.dmg",
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStore-1.0.0.5.dmg",
       "sha256": ""
     },
     "linux": {
-      "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStore-1.0.0.5.tar.gz",
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStore-1.0.0.5.tar.gz",
       "sha256": ""
     }
   }

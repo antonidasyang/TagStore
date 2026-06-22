@@ -5,19 +5,24 @@ domain, and no server-side code. The app fetches a static `latest.json`,
 compares the advertised version to its own, and downloads the platform package
 if a newer one exists.
 
-- Public endpoint: `https://oss.d2ssoft.com` (MinIO, S3-compatible, internal `10.6.2.50`)
-- Bucket: `tagstore-updates`
-- Manifest URL the app polls: `https://oss.d2ssoft.com/tagstore-updates/latest.json`
+- Public endpoint: `https://oss.d2ssoft.com` (MinIO, S3-compatible; internal LAN `http://10.6.1.211:9000`)
+- Bucket: `downloads` (shared across products) — TagStore lives under `downloads/tagstore/`
+- Manifest URL the app polls: `https://oss.d2ssoft.com/downloads/tagstore/latest.json`
+
+> The `downloads` bucket and the `downloads-app` upload account are managed
+> centrally; full details are in [`../docs/软件发布上传指南.md`](../docs/软件发布上传指南.md).
+> Each product keeps to its own subfolder — only touch `downloads/tagstore/`.
 
 ## Layout in the bucket
 
 ```
-tagstore-updates/
-├── latest.json
-└── 1.0.0.5/
-    ├── TagStoreSetup_1.0.0.5.exe     (Windows, Inno Setup)
-    ├── TagStore-1.0.0.5.dmg          (macOS, optional)
-    └── TagStore-1.0.0.5.tar.gz       (Linux, optional)
+downloads/
+└── tagstore/                          ← our product subfolder (don't touch others)
+    ├── latest.json
+    └── 1.0.0.5/
+        ├── TagStoreSetup_1.0.0.5.exe  (Windows, Inno Setup)
+        ├── TagStore-1.0.0.5.dmg       (macOS, optional)
+        └── TagStore-1.0.0.5.tar.gz    (Linux, optional)
 ```
 
 ## `latest.json` format
@@ -28,7 +33,7 @@ tagstore-updates/
   "pubDate": "2026-06-06",
   "notes": "What changed in this release.",
   "platforms": {
-    "windows": { "url": "https://oss.d2ssoft.com/tagstore-updates/1.0.0.5/TagStoreSetup_1.0.0.5.exe", "sha256": "<hex>" },
+    "windows": { "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStoreSetup_1.0.0.5.exe", "sha256": "<hex>" },
     "macos":   { "url": "...", "sha256": "<hex>" },
     "linux":   { "url": "...", "sha256": "<hex>" }
   }
@@ -41,56 +46,30 @@ tagstore-updates/
 - `sha256` — optional. When present, the client verifies the download and aborts
   on mismatch. Leave `""` to skip.
 
-## One-time setup: a bucket anyone can download from (no account/password)
+## The bucket is already set up (centrally)
 
-**Yes — this is exactly what MinIO's "anonymous download" policy is for.** You
-create the bucket once with your admin credentials, then attach a public
-*download-only* policy. After that, **anyone with the URL can `GET` objects with
-no username, password, or signed request** — but nobody can upload, delete, or
-even list the bucket without keys. That's precisely what a release feed needs.
+The shared `downloads` bucket is already created and set to **anonymous
+download** — anyone can `GET` an object by URL, but nobody can list or write
+without keys — and the `downloads-app` upload account already exists with
+read/write on that bucket only. You do **not** run `mc mb` / `mc anonymous`;
+that's the storage admin's job, documented in
+[`../docs/软件发布上传指南.md`](../docs/软件发布上传指南.md).
 
-Install the MinIO client `mc`, then:
-
-```bash
-# 1. Point mc at the MinIO server using your ADMIN access/secret keys.
-#    (Only you need these; end users never do.)
-mc alias set d2s https://oss.d2ssoft.com <ACCESS_KEY> <SECRET_KEY>
-
-# 2. Create the bucket
-mc mb d2s/tagstore-updates
-
-# 3. Make it publicly downloadable — anonymous READ only.
-#    "download" = GET objects by URL; it does NOT allow listing or writing.
-mc anonymous set download d2s/tagstore-updates
-```
-
-Verify it's reachable with no credentials at all:
+All you need is the `downloads-app` secret in your `minio.secret.env` (next
+section). Sanity-check that the feed is reachable with no credentials at all:
 
 ```bash
-curl -I https://oss.d2ssoft.com/tagstore-updates/latest.json   # expect 200 once uploaded
+curl -I https://oss.d2ssoft.com/downloads/tagstore/latest.json   # expect 200 once uploaded
 ```
-
-Policy options, for reference:
-
-| `mc anonymous set <policy>` | Anonymous GET object | Anonymous list bucket | Anonymous write |
-|-----------------------------|:--------------------:|:---------------------:|:---------------:|
-| `download`  ← use this      | ✅ (by exact URL)    | ❌                    | ❌              |
-| `public`                    | ✅                   | ✅                    | ✅ (unsafe)     |
-| `none` (default)            | ❌                   | ❌                    | ❌              |
-
-Use **`download`**. Avoid `public` — it would let anyone overwrite your
-installers. Because listing is off, releases are reachable only by their exact
-path, which is why the client fetches a known `latest.json` rather than browsing.
-
-> Alternatively you can set the same thing in the MinIO Console UI:
-> *Bucket → Anonymous → Add Access Rule → Prefix `/`, Access `readonly`*.
 
 ## Where to upload
 
-Everything goes into the `tagstore-updates` bucket (see the layout above):
+Everything goes under our product subfolder in the shared bucket (see the
+layout above) — **stay inside `downloads/tagstore/`, never touch other
+products' folders**:
 
-- The installer/package → `tagstore-updates/<version>/<file>`
-- The manifest → `tagstore-updates/latest.json` (overwrite each release)
+- The installer/package → `downloads/tagstore/<version>/<file>`
+- The manifest → `downloads/tagstore/latest.json` (overwrite each release)
 
 You don't place these by hand — `publish.sh` does it. On Windows, build the
 installer first with `installer\deploy-windows.ps1` (runs `windeployqt6` +
@@ -118,9 +97,8 @@ chmod 600 minio.secret.env                      # POSIX
 # Windows: icacls minio.secret.env /inheritance:r /grant:r "$($env:USERNAME):(R)"
 ```
 
-> The bucket-creation step above (`mc mb` / `mc anonymous`) still needs `mc`
-> configured once. Either run `mc alias set d2s ...` by hand for that, or create
-> `minio.secret.env` first and run any publish — it sets the alias on the way.
+> The first publish runs `mc alias set` for you from `minio.secret.env`, so you
+> don't need to configure `mc` by hand beforehand.
 
 ### Run it
 
@@ -154,8 +132,9 @@ it, pass `-InstallMc` once and the script downloads it for you:
 ```
 
 Pass any subset of windows/macos/linux packages. Override the alias, bucket,
-or base URL via `-McAlias`/`-Bucket`/`-BaseUrl` (PowerShell) or the
-`MC_ALIAS`/`BUCKET`/`BASE_URL` environment variables (bash).
+product subfolder, or base URL via `-McAlias`/`-Bucket`/`-Product`/`-BaseUrl`
+(PowerShell) or the `MC_ALIAS`/`BUCKET`/`PRODUCT`/`BASE_URL` environment
+variables (bash).
 
 ## Release checklist
 

@@ -18,9 +18,10 @@
 .PARAMETER Linux    Path to the Linux package (optional).
 .PARAMETER Notes    Release notes shown in the in-app update dialog.
 .PARAMETER McAlias  mc alias name (default: d2s).
-.PARAMETER Bucket   Bucket name (default: tagstore-updates).
+.PARAMETER Bucket   Shared bucket name (default: downloads).
+.PARAMETER Product  Product subfolder inside the bucket (default: tagstore).
 .PARAMETER BaseUrl  Public base URL, no trailing slash
-                    (default: https://oss.d2ssoft.com/tagstore-updates).
+                    (default: https://oss.d2ssoft.com/downloads/tagstore).
 
 .EXAMPLE
     .\publish.ps1 -Version 1.0.0.5 `
@@ -36,6 +37,7 @@ param(
     [string]$Notes = "",
     [string]$McAlias,
     [string]$Bucket,
+    [string]$Product,
     [string]$BaseUrl,
     # Gitignored file holding MinIO endpoint + access/secret keys.
     [string]$CredentialsFile = (Join-Path $PSScriptRoot "minio.secret.env"),
@@ -74,8 +76,12 @@ function Resolve-Setting($paramVal, $cfgKey, $envName, $default) {
     return $default
 }
 $McAlias = Resolve-Setting $McAlias "MINIO_ALIAS"    "MC_ALIAS" "d2s"
-$Bucket  = Resolve-Setting $Bucket  "MINIO_BUCKET"   "BUCKET"   "tagstore-updates"
-$BaseUrl = (Resolve-Setting $BaseUrl "MINIO_BASE_URL" "BASE_URL" "https://oss.d2ssoft.com/tagstore-updates").TrimEnd('/')
+# Shared bucket; each product lives in its own subfolder (downloads/<product>/...).
+$Bucket  = Resolve-Setting $Bucket  "MINIO_BUCKET"   "BUCKET"   "downloads"
+$Product = Resolve-Setting $Product "MINIO_PRODUCT"  "PRODUCT"  "tagstore"
+$BaseUrl = (Resolve-Setting $BaseUrl "MINIO_BASE_URL" "BASE_URL" "https://oss.d2ssoft.com/downloads/tagstore").TrimEnd('/')
+# Object-key prefix inside the shared bucket: <bucket>/<product>/...
+$Prefix  = "$Bucket/$Product"
 
 # Locate mc.exe: PATH first, then alongside this script (drop mc.exe in
 # update-server\ and it just works — no PATH edits needed).
@@ -132,7 +138,7 @@ function Add-Platform([string]$key, [string]$file) {
     if (-not $file) { return }
     if (-not (Test-Path $file)) { throw "$key package not found: $file" }
     $name   = Split-Path $file -Leaf
-    $remote = "$McAlias/$Bucket/$Version/$name"
+    $remote = "$McAlias/$Prefix/$Version/$name"
     Write-Step "uploading $key : $file -> $remote"
     & $Mc cp $file $remote
     if ($LASTEXITCODE -ne 0) { throw "mc cp failed for $file ($LASTEXITCODE)" }
@@ -170,7 +176,7 @@ $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "tagstore-latest.json"
 [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Step "uploading manifest (Cache-Control: no-cache)"
-& $Mc cp --attr "Cache-Control=no-cache" $tmp "$McAlias/$Bucket/latest.json"
+& $Mc cp --attr "Cache-Control=no-cache" $tmp "$McAlias/$Prefix/latest.json"
 if ($LASTEXITCODE -ne 0) { throw "mc cp failed for latest.json ($LASTEXITCODE)" }
 Remove-Item $tmp -ErrorAction SilentlyContinue
 

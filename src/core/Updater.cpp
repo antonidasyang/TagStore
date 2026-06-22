@@ -21,7 +21,7 @@ namespace {
 // Default location of the update manifest + packages: a public MinIO bucket.
 // Overridable via QSettings("TagStore","TagStore") key "update/baseUrl" so the
 // endpoint can be changed without recompiling.
-const QString kDefaultBaseUrl = QStringLiteral("https://oss.d2ssoft.com/tagstore-updates/");
+const QString kDefaultBaseUrl = QStringLiteral("https://oss.d2ssoft.com/downloads/tagstore/");
 }
 
 Updater::Updater(QObject *parent)

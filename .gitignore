@@ -168,3 +168,4 @@ update-server/tools/
 
 # 内网 MinIO 接入文档（含明文密钥）— 绝不提交
 docs/tagstore-updates-bucket.md
+docs/软件发布上传指南.md
