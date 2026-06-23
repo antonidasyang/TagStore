@@ -269,6 +269,7 @@ void LanguageManager::initTranslations()
     zh["Import Options"] = "导入选项";
     zh["Start Minimized"] = "启动时最小化";
     zh["Start with Windows"] = "开机自启动";
+    zh["Show Floating Window"] = "显示悬浮窗";
 
     // Balloon
     zh["Drag files and folders here"] = "拖放文件和文件夹到这里";

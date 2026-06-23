@@ -66,7 +66,10 @@ void LibraryConfig::loadSettings()
     
     // Startup settings
     m_startMinimized = m_settings.value("startup/minimized", false).toBool();
-    
+
+    // UI settings
+    m_showFloatingWindow = m_settings.value("ui/showFloatingWindow", true).toBool();
+
     // Ensure library directory exists
     ensureDirectoryExists(m_libraryPath);
 }
@@ -91,7 +94,8 @@ void LibraryConfig::saveSettings()
     m_settings.setValue("ai/systemPrompt", m_systemPrompt);
     m_settings.setValue("import/defaultMode", m_defaultImportMode);
     m_settings.setValue("startup/minimized", m_startMinimized);
-    
+    m_settings.setValue("ui/showFloatingWindow", m_showFloatingWindow);
+
     m_settings.sync();
 }
 
@@ -331,6 +335,16 @@ void LibraryConfig::setStartMinimized(bool enable)
         m_startMinimized = enable;
         saveSettings();
         emit startMinimizedChanged();
+    }
+}
+
+bool LibraryConfig::showFloatingWindow() const { return m_showFloatingWindow; }
+void LibraryConfig::setShowFloatingWindow(bool enable)
+{
+    if (m_showFloatingWindow != enable) {
+        m_showFloatingWindow = enable;
+        saveSettings();
+        emit showFloatingWindowChanged();
     }
 }
 

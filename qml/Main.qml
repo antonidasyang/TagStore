@@ -34,7 +34,7 @@ ApplicationWindow {
         id: balloonDelayTimer
         interval: 500
         repeat: false
-        onTriggered: dropBalloon.visible = true
+        onTriggered: dropBalloon.visible = libraryConfig.showFloatingWindow
     }
     
     property bool forceQuit: false
@@ -61,14 +61,14 @@ ApplicationWindow {
             // Minimize to tray
             close.accepted = false
             window.hide()
-            dropBalloon.show()
+            if (libraryConfig.showFloatingWindow) dropBalloon.show()
         }
     }
     
     onVisibilityChanged: function(visibility) {
         if (visibility === Window.Minimized) {
             window.hide()
-            dropBalloon.show()
+            if (libraryConfig.showFloatingWindow) dropBalloon.show()
         }
     }
     
@@ -762,6 +762,12 @@ ApplicationWindow {
                             checked: libraryConfig.startWithWindows
                         }
 
+                        CheckBox {
+                            id: floatWinCheck
+                            text: t("Show Floating Window")
+                            checked: libraryConfig.showFloatingWindow
+                        }
+
                         // Divider
                         Rectangle {
                             Layout.fillWidth: true
@@ -1183,6 +1189,8 @@ ApplicationWindow {
                             libraryConfig.systemPrompt = systemPromptField.text
                             libraryConfig.startMinimized = startMinCheck.checked
                             libraryConfig.startWithWindows = startWinCheck.checked
+                            libraryConfig.showFloatingWindow = floatWinCheck.checked
+                            dropBalloon.visible = floatWinCheck.checked
                             settingsDialog.accept()
                             if (llmClient.isConfigured()) {
                                 llmProcessor.processNow()

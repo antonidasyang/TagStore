@@ -30,6 +30,7 @@ class LibraryConfig : public QObject
     Q_PROPERTY(int defaultImportMode READ defaultImportMode WRITE setDefaultImportMode NOTIFY defaultImportModeChanged)
     Q_PROPERTY(bool startMinimized READ startMinimized WRITE setStartMinimized NOTIFY startMinimizedChanged)
     Q_PROPERTY(bool startWithWindows READ startWithWindows WRITE setStartWithWindows NOTIFY startWithWindowsChanged)
+    Q_PROPERTY(bool showFloatingWindow READ showFloatingWindow WRITE setShowFloatingWindow NOTIFY showFloatingWindowChanged)
     
 public:
     static LibraryConfig& instance();
@@ -89,7 +90,10 @@ public:
 
     bool startWithWindows() const;
     Q_INVOKABLE void setStartWithWindows(bool enable);
-    
+
+    bool showFloatingWindow() const;
+    Q_INVOKABLE void setShowFloatingWindow(bool enable);
+
     Q_INVOKABLE void showInExplorer(const QString &filePath);
     
 signals:
@@ -108,7 +112,8 @@ signals:
     void defaultImportModeChanged();
     void startMinimizedChanged();
     void startWithWindowsChanged();
-    
+    void showFloatingWindowChanged();
+
 private:
     LibraryConfig(QObject *parent = nullptr);
     ~LibraryConfig() = default;
@@ -139,6 +144,7 @@ private:
     QString m_systemPrompt;
     int m_defaultImportMode;
     bool m_startMinimized;
+    bool m_showFloatingWindow;
 };
 
 #endif // LIBRARYCONFIG_H
