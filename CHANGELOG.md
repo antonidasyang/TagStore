@@ -1,5 +1,9 @@
 # TagStore Changelog
 
+## [1.0.0.7] - 2026-06-23
+### Fixed
+- **Self-Update on Windows**: The running app's "minimize to tray on close" behavior was swallowing the close request the installer sends (via Windows Restart Manager) to release the locked `TagStore.exe`, so a silent update couldn't replace the running binary. The app now quits for real while an update is installing, the worker-thread shutdown is bounded (3s) so a slow `pdftotext` can't keep the process — and the `.exe` lock — alive, and the installer now force-closes any stubborn instance and relaunches the app after a silent install. Takes effect for updates from this version onward.
+
 ## [1.0.0.6] - 2026-06-23
 ### Added
 - **Show Floating Window**: New toggle in **Settings → General** (enabled by default) controls whether the drop balloon (悬浮窗) is shown. When disabled, the balloon stays hidden at startup and on minimize-to-tray; the system tray icon still restores the main window. Stored as `ui/showFloatingWindow`.

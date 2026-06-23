@@ -63,3 +63,17 @@ Name: "{autodesktop}\{cm:AppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:AppName}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  // Self-update safety net. CloseApplications (above) asks a running TagStore to
+  // close gracefully via Restart Manager; if any instance ignores that request,
+  // force-kill it here so the locked TagStore.exe can be replaced. taskkill
+  // returning nonzero (nothing to kill) is expected and ignored.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName} /T',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;
