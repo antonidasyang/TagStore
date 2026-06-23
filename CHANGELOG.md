@@ -1,5 +1,9 @@
 # TagStore Changelog
 
+## [1.0.0.6] - 2026-06-23
+### Added
+- **Show Floating Window**: New toggle in **Settings → General** (enabled by default) controls whether the drop balloon (悬浮窗) is shown. When disabled, the balloon stays hidden at startup and on minimize-to-tray; the system tray icon still restores the main window. Stored as `ui/showFloatingWindow`.
+
 ## [1.0.0.5] - 2026-06-06
 ### Added
 - **Auto-Update**: The app now checks a public MinIO bucket (`oss.d2ssoft.com`) for new releases on startup and offers a one-click update. On Windows it downloads and launches the installer; on macOS/Linux it downloads and opens the package. Also available manually via **Settings → General → Check for Updates**. See `update-server/` for the publishing workflow.

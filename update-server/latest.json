@@ -1,18 +1,18 @@
 {
-  "version": "1.0.0.5",
-  "pubDate": "2026-06-06",
-  "notes": "Improved AI tagging relevance and consolidated near-duplicate tags.",
+  "version": "1.0.0.6",
+  "pubDate": "2026-06-23",
+  "notes": "Added a \"Show Floating Window\" toggle in Settings → General (on by default) to hide the drop balloon.",
   "platforms": {
     "windows": {
-      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStoreSetup_1.0.0.5.exe",
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.6/TagStoreSetup_1.0.0.6.exe",
       "sha256": ""
     },
     "macos": {
-      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStore-1.0.0.5.dmg",
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.6/TagStore-1.0.0.6.dmg",
       "sha256": ""
     },
     "linux": {
-      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.5/TagStore-1.0.0.5.tar.gz",
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.6/TagStore-1.0.0.6.tar.gz",
       "sha256": ""
     }
   }
