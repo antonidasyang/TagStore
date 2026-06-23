@@ -36,6 +36,11 @@ OutputBaseFilename=TagStoreSetup_{#GetFileVersion('.\bin\TagStore.exe')}
 SetupIconFile=..\assets\icon.ico
 SolidCompression=yes
 WizardStyle=modern
+; Self-update coordination: ask the running TagStore to close (via Windows
+; Restart Manager) so its locked .exe can be replaced, and relaunch it after —
+; this also makes the silent auto-update restart the app for the user.
+CloseApplications=yes
+RestartApplications=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"; LicenseFile: .\bin\LICENSE.txt

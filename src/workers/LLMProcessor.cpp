@@ -41,7 +41,13 @@ LLMProcessor::~LLMProcessor()
 {
     stop();
     m_workerThread->quit();
-    m_workerThread->wait();
+    // Bound the join: if the worker is mid-extraction (e.g. a slow pdftotext),
+    // don't let it hang process exit — a lingering process keeps TagStore.exe
+    // locked and blocks the self-update installer from replacing it.
+    if (!m_workerThread->wait(3000)) {
+        m_workerThread->terminate();
+        m_workerThread->wait();
+    }
 }
 
 bool LLMProcessor::isRunning() const

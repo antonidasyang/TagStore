@@ -42,6 +42,15 @@ ApplicationWindow {
     property var clipboardTags: [] // Store tags for copy/paste
     
     onClosing: function(close) {
+        // During an update install the installer (via Windows Restart Manager)
+        // asks us to close so it can replace the running TagStore.exe. Quit for
+        // real instead of minimizing to tray — otherwise the .exe stays locked
+        // and the update silently fails.
+        if (updater.statusKey === "installing") {
+            close.accepted = true
+            Qt.quit()
+            return
+        }
         if (isQuitting) {
             if (llmProcessor.isBusy && !forceQuit) {
                 close.accepted = false
