@@ -1,5 +1,9 @@
 # TagStore Changelog
 
+## [1.0.0.8] - 2026-06-23
+### Fixed
+- **Self-Update installer killed itself**: The 1.0.0.7 installer's stale-instance cleanup ran `taskkill /F /IM TagStore.exe /T`. Because the updater launches the installer as a *child* of the running `TagStore.exe`, the `/T` (kill-process-tree) flag killed the installer itself, so a silent update aborted mid-install. The cleanup now matches the exact image name only (no `/T`), and the app is relaunched after a silent auto-update install.
+
 ## [1.0.0.7] - 2026-06-23
 ### Fixed
 - **Self-Update on Windows**: The running app's "minimize to tray on close" behavior was swallowing the close request the installer sends (via Windows Restart Manager) to release the locked `TagStore.exe`, so a silent update couldn't replace the running binary. The app now quits for real while an update is installing, the worker-thread shutdown is bounded (3s) so a slow `pdftotext` can't keep the process — and the `.exe` lock — alive, and the installer now force-closes any stubborn instance and relaunches the app after a silent install. Takes effect for updates from this version onward.

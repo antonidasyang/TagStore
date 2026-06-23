@@ -62,6 +62,10 @@ Name: "{autoprograms}\{cm:AppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{cm:AppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; After a silent (auto-update) install, relaunch the app: the post-install
+; "run now" checkbox below is skipped in silent mode, which would otherwise
+; leave nothing running.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:AppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -73,7 +77,12 @@ begin
   // close gracefully via Restart Manager; if any instance ignores that request,
   // force-kill it here so the locked TagStore.exe can be replaced. taskkill
   // returning nonzero (nothing to kill) is expected and ignored.
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName} /T',
+  //
+  // IMPORTANT: NO "/T". The updater launches this installer as a CHILD of the old
+  // TagStore.exe, so "/T" (kill the whole process tree) would also kill the
+  // installer itself. Match the exact image name only — the installer process is
+  // TagStoreSetup_*.exe, so it is never matched by "/IM TagStore.exe".
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName}',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';
 end;
