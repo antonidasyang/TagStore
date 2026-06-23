@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0.7",
+  "version": "1.0.0.8",
   "pubDate": "2026-06-23",
-  "notes": "修复 Windows 自动更新时无法替换正在运行程序的问题；新增「显示悬浮窗」开关（设置 → 常规，默认开启）。",
+  "notes": "修复 Windows 自动更新无法完成安装的问题；新增「显示悬浮窗」开关（设置 → 常规，默认开启）。",
   "platforms": {
     "windows": {
-      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.7/TagStoreSetup_1.0.0.7.exe",
-      "sha256": "8acbe54861acf4b917c3b7b52515b4272eac904242b9f882212184b76d2bbe62"
+      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.8/TagStoreSetup_1.0.0.8.exe",
+      "sha256": "b1b44aaf4ec5ab3c4c39bd245199a50588ddac2e57a62b37107b9b2d02b56a98"
     }
   }
 }
