@@ -1,19 +1,11 @@
 {
   "version": "1.0.0.6",
   "pubDate": "2026-06-23",
-  "notes": "Added a \"Show Floating Window\" toggle in Settings → General (on by default) to hide the drop balloon.",
+  "notes": "新增「显示悬浮窗」开关（设置 → 常规，默认开启），可隐藏拖放悬浮窗。",
   "platforms": {
     "windows": {
       "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.6/TagStoreSetup_1.0.0.6.exe",
-      "sha256": ""
-    },
-    "macos": {
-      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.6/TagStore-1.0.0.6.dmg",
-      "sha256": ""
-    },
-    "linux": {
-      "url": "https://oss.d2ssoft.com/downloads/tagstore/1.0.0.6/TagStore-1.0.0.6.tar.gz",
-      "sha256": ""
+      "sha256": "5f30cc87f90ffc29d4dd5816c1dc116b0bb620a2b9e3f57322e045d9fd76b710"
     }
   }
 }
