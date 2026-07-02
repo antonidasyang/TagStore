@@ -10,9 +10,13 @@ REM                                TagStore.exe into installer\bin)
 REM      build.bat debug           explicit Debug (same as no arg)
 REM      build.bat clean           wipe build\ first, then a Debug build
 REM      build.bat release clean   wipe build\ first, then a Release build
+REM      build.bat package         Release build + windeployqt + Inno Setup
+REM                                -> installer\TagStoreSetup_<ver>.exe
 REM
 REM  Args are order-independent: "release"/"debug" pick the config, "clean"
-REM  forces a from-scratch reconfigure. TagStore uses qt_add_qml_module (Qt6),
+REM  forces a from-scratch reconfigure, "package" implies Release and runs the
+REM  full installer pipeline (windeployqt with the SAME kit used to build, then
+REM  ISCC). TagStore uses qt_add_qml_module (Qt6),
 REM  which tracks QML + qmlcache correctly, so incremental builds are safe --
 REM  "clean" is only needed after a toolchain / CMake-option change (including
 REM  the FIRST run after switching kit or compiler).
@@ -47,6 +51,7 @@ set "ROOT=%~dp0"
 if not defined BUILD_DIR set "BUILD_DIR=build"
 set "BUILD_TYPE=Debug"
 set "CLEAN=0"
+set "PACKAGE=0"
 
 REM --- Parse args (order-independent) ----------------------------------------
 :parseargs
@@ -58,10 +63,15 @@ if /I "%~1"=="debug"   set "BUILD_TYPE=Debug"
 if /I "%~1"=="debug"   set "ARGOK=1"
 if /I "%~1"=="clean"   set "CLEAN=1"
 if /I "%~1"=="clean"   set "ARGOK=1"
+if /I "%~1"=="package" set "PACKAGE=1"
+if /I "%~1"=="package" set "ARGOK=1"
 if "%ARGOK%"=="0" goto :bad_arg
 shift
 goto :parseargs
 :args_done
+REM Packaging is always a Release build (windeployqt --release + the installer
+REM expect the release Qt DLLs), so force it regardless of arg order.
+if "%PACKAGE%"=="1" set "BUILD_TYPE=Release"
 
 REM --- Resolve the Qt kit (QT_PREFIX) ----------------------------------------
 REM Exact QT_PREFIX wins untouched.
@@ -171,9 +181,48 @@ if errorlevel 1 goto :build_fail
 
 popd
 echo.
-echo [build] SUCCESS -- %BUILD_TYPE%. Output:
+echo [build] Build OK -- %BUILD_TYPE%.
 echo         %ROOT%%BUILD_DIR%\TagStore.exe
 if /I "%BUILD_TYPE%"=="Release" echo         %ROOT%installer\bin\TagStore.exe   [release copy]
+if not "%PACKAGE%"=="1" goto :all_done
+
+REM --- packaging: windeployqt (same kit) + licenses + Inno Setup -------------
+echo.
+echo [build] Packaging (windeployqt + Inno Setup) ...
+set "WINDEPLOY=%QT_PREFIX%\bin\windeployqt6.exe"
+if not exist "%WINDEPLOY%" set "WINDEPLOY=%QT_PREFIX%\bin\windeployqt.exe"
+if not exist "%WINDEPLOY%" goto :no_windeploy
+echo [build] windeployqt: %WINDEPLOY%
+"%WINDEPLOY%" --release --qmldir "%ROOT%qml" --compiler-runtime --no-translations "%ROOT%installer\bin\TagStore.exe"
+if errorlevel 1 goto :pkg_fail
+
+REM setup.iss shows license pages from bin\LICENSE.txt / bin\LICENSE_CN.txt.
+if exist "%ROOT%installer\LICENSE.txt"    copy /Y "%ROOT%installer\LICENSE.txt"    "%ROOT%installer\bin\LICENSE.txt"    >nul
+if exist "%ROOT%installer\LICENSE_CN.txt" copy /Y "%ROOT%installer\LICENSE_CN.txt" "%ROOT%installer\bin\LICENSE_CN.txt" >nul
+
+set "ISCC="
+for %%X in (ISCC.exe) do if not defined ISCC set "ISCC=%%~$PATH:X"
+if not defined ISCC if defined INNO_SETUP if exist "%INNO_SETUP%\ISCC.exe" set "ISCC=%INNO_SETUP%\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC goto :no_iscc
+echo [build] Inno Setup: %ISCC%
+pushd "%ROOT%installer"
+"%ISCC%" setup.iss
+set "ISCC_RC=%errorlevel%"
+popd
+if not "%ISCC_RC%"=="0" goto :pkg_fail
+
+set "VER="
+for /f "usebackq delims=" %%v in ("%ROOT%version.txt") do set "VER=%%v"
+echo.
+echo [build] Installer ready:
+echo         %ROOT%installer\TagStoreSetup_%VER%.exe
+echo.
+echo [build] Next, publish to the update bucket (PowerShell):
+echo         .\update-server\publish.ps1 -Version %VER% -Win installer\TagStoreSetup_%VER%.exe -Notes "..."
+
+:all_done
 echo.
 endlocal
 exit /b 0
@@ -183,10 +232,11 @@ REM  Error / usage labels
 REM ===========================================================================
 :usage
 echo.
-echo Usage: build.bat [debug^|release] [clean]
+echo Usage: build.bat [debug^|release] [clean] [package]
 echo     no arg     Debug, incremental build
 echo     release    Release build (also copies TagStore.exe into installer\bin)
 echo     clean      wipe build\ first, then build
+echo     package    Release build + windeployqt + Inno Setup installer
 exit /b 1
 
 :bad_arg
@@ -252,6 +302,26 @@ exit /b 1
 popd
 echo.
 echo [build] Build FAILED.
+exit /b 1
+
+:no_windeploy
+echo.
+echo [build] ERROR: windeployqt not found in "%QT_PREFIX%\bin".
+echo         Expected windeployqt6.exe or windeployqt.exe there. The build
+echo         succeeded -- only packaging was skipped.
+exit /b 1
+
+:no_iscc
+echo.
+echo [build] ERROR: ISCC.exe (Inno Setup 6) not found. The build + windeployqt
+echo         succeeded; only the .exe packaging step was skipped.
+echo   * Install Inno Setup 6, add ISCC.exe to PATH, or set INNO_SETUP to its
+echo     folder, then re-run:  build.bat package
+exit /b 1
+
+:pkg_fail
+echo.
+echo [build] Packaging FAILED (build itself succeeded).
 exit /b 1
 
 REM ===========================================================================
