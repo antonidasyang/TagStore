@@ -65,8 +65,14 @@ Name: "{autodesktop}\{cm:AppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; After a silent (auto-update) install, relaunch the app: the post-install
 ; "run now" checkbox below is skipped in silent mode, which would otherwise
 ; leave nothing running.
-Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:AppName}}"; Flags: nowait postinstall skipifsilent
+;
+; runasoriginaluser is CRITICAL: Setup runs elevated (PrivilegesRequired
+; defaults to admin so we can write to Program Files). Without this flag, [Run]
+; launches TagStore.exe with Setup's elevated token, and Windows UIPI then
+; blocks drag & drop from the (non-elevated) Explorer into BOTH the main window
+; and the drop balloon. Launching as the original, non-elevated user restores it.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent runasoriginaluser
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:AppName}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
