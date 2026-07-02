@@ -1,5 +1,9 @@
 # TagStore Changelog
 
+## [1.0.0.9] - 2026-07-02
+### Fixed
+- **Drag & drop stopped working after install/update**: The installer runs elevated (it writes to Program Files), and its `[Run]` entries relaunched `TagStore.exe` with that elevated token. Windows UIPI then blocks drag & drop from the (non-elevated) Explorer into an elevated window, so files could no longer be dropped onto **either** the main window or the drop balloon. The installer now relaunches the app as the original, non-elevated user (`runasoriginaluser`). Takes effect for installs performed by this version's installer onward; an app already running elevated recovers once it is fully quit and relaunched normally.
+
 ## [1.0.0.8] - 2026-06-23
 ### Fixed
 - **Self-Update installer killed itself**: The 1.0.0.7 installer's stale-instance cleanup ran `taskkill /F /IM TagStore.exe /T`. Because the updater launches the installer as a *child* of the running `TagStore.exe`, the `/T` (kill-process-tree) flag killed the installer itself, so a silent update aborted mid-install. The cleanup now matches the exact image name only (no `/T`), and the app is relaunched after a silent auto-update install.
