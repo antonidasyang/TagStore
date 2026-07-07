@@ -189,16 +189,28 @@ if not "%PACKAGE%"=="1" goto :all_done
 REM --- packaging: windeployqt (same kit) + licenses + Inno Setup -------------
 echo.
 echo [build] Packaging (windeployqt + Inno Setup) ...
+
+REM Rebuild installer\bin from scratch. Inno packs ".\bin\*.*" verbatim, and
+REM nothing else here removes leftovers -- a stale or foreign-Qt DLL surviving
+REM in this dir gets shipped and mismatches the freshly built exe, which is what
+REM causes "entry point ... could not be located in Qt6Network.dll" on a clean
+REM PC. Wiping guarantees the installer only carries this kit's consistent set.
+set "BIN=%ROOT%installer\bin"
+if exist "%BIN%" rmdir /S /Q "%BIN%"
+mkdir "%BIN%"
+copy /Y "%ROOT%%BUILD_DIR%\TagStore.exe" "%BIN%\TagStore.exe" >nul
+if errorlevel 1 goto :pkg_fail
+
 set "WINDEPLOY=%QT_PREFIX%\bin\windeployqt6.exe"
 if not exist "%WINDEPLOY%" set "WINDEPLOY=%QT_PREFIX%\bin\windeployqt.exe"
 if not exist "%WINDEPLOY%" goto :no_windeploy
 echo [build] windeployqt: %WINDEPLOY%
-"%WINDEPLOY%" --release --qmldir "%ROOT%qml" --compiler-runtime --no-translations "%ROOT%installer\bin\TagStore.exe"
+"%WINDEPLOY%" --release --qmldir "%ROOT%qml" --compiler-runtime --no-translations "%BIN%\TagStore.exe"
 if errorlevel 1 goto :pkg_fail
 
 REM setup.iss shows license pages from bin\LICENSE.txt / bin\LICENSE_CN.txt.
-if exist "%ROOT%installer\LICENSE.txt"    copy /Y "%ROOT%installer\LICENSE.txt"    "%ROOT%installer\bin\LICENSE.txt"    >nul
-if exist "%ROOT%installer\LICENSE_CN.txt" copy /Y "%ROOT%installer\LICENSE_CN.txt" "%ROOT%installer\bin\LICENSE_CN.txt" >nul
+if exist "%ROOT%installer\LICENSE.txt"    copy /Y "%ROOT%installer\LICENSE.txt"    "%BIN%\LICENSE.txt"    >nul
+if exist "%ROOT%installer\LICENSE_CN.txt" copy /Y "%ROOT%installer\LICENSE_CN.txt" "%BIN%\LICENSE_CN.txt" >nul
 
 set "ISCC="
 for %%X in (ISCC.exe) do if not defined ISCC set "ISCC=%%~$PATH:X"
