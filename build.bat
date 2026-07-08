@@ -215,6 +215,8 @@ if exist "%ROOT%installer\LICENSE_CN.txt" copy /Y "%ROOT%installer\LICENSE_CN.tx
 set "ISCC="
 for %%X in (ISCC.exe) do if not defined ISCC set "ISCC=%%~$PATH:X"
 if not defined ISCC if defined INNO_SETUP if exist "%INNO_SETUP%\ISCC.exe" set "ISCC=%INNO_SETUP%\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 7\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 7\ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if not defined ISCC goto :no_iscc
@@ -325,9 +327,9 @@ exit /b 1
 
 :no_iscc
 echo.
-echo [build] ERROR: ISCC.exe (Inno Setup 6) not found. The build + windeployqt
+echo [build] ERROR: ISCC.exe (Inno Setup 6 or 7) not found. The build + windeployqt
 echo         succeeded; only the .exe packaging step was skipped.
-echo   * Install Inno Setup 6, add ISCC.exe to PATH, or set INNO_SETUP to its
+echo   * Install Inno Setup 6/7, add ISCC.exe to PATH, or set INNO_SETUP to its
 echo     folder, then re-run:  build.bat package
 exit /b 1
 

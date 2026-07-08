@@ -139,11 +139,13 @@ if ($Installer) {
         if ($cmd) { return $cmd.Source }
         foreach ($p in @(
             "$env:INNO_SETUP\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
             "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
             "$env:ProgramFiles\Inno Setup 6\ISCC.exe")) {
             if ($p -and (Test-Path $p)) { return $p }
         }
-        throw "ISCC.exe (Inno Setup 6) not found. Install it or set INNO_SETUP to its folder."
+        throw "ISCC.exe (Inno Setup 6 or 7) not found. Install it or set INNO_SETUP to its folder."
     }
     $Iscc = Find-ISCC
     Write-Step "Inno Setup: $Iscc"
